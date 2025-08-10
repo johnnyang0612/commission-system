@@ -30,18 +30,32 @@ export default function Login() {
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`
-      }
-    });
     
-    if (error) {
-      console.error('登入失敗:', error);
-      alert('登入失敗，請再試一次');
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+      
+      if (error) {
+        console.error('Google 登入失敗:', error);
+        alert('登入失敗：' + error.message);
+        setLoading(false);
+      } else {
+        console.log('Google OAuth 已啟動', data);
+        // OAuth 會重定向到 Google，不需要處理
+      }
+    } catch (err) {
+      console.error('登入錯誤:', err);
+      alert('登入發生錯誤，請稍後再試');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDemoLogin = () => {

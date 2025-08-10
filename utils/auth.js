@@ -8,49 +8,69 @@ export function useAuth() {
   const router = useRouter();
 
   useEffect(() => {
-    // 獲取當前用戶
-    const getUser = async () => {
-      // 檢查演示模式
-      const demoLoggedIn = localStorage.getItem('demo_logged_in');
-      if (demoLoggedIn === 'true') {
-        setUser({
-          id: 'demo-user',
-          email: 'demo@example.com',
-          user_metadata: { full_name: 'Demo User' }
-        });
+    const checkAuth = async () => {
+      try {
+        // 先檢查 Supabase session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Auth error:', error);
+        }
+        
+        if (session?.user) {
+          setUser(session.user);
+          setLoading(false);
+          
+          // 同步用戶到資料庫
+          await syncUserToDatabase(session.user);
+        } else {
+          // 檢查演示模式
+          const demoLoggedIn = localStorage.getItem('demo_logged_in');
+          if (demoLoggedIn === 'true') {
+            setUser({
+              id: 'demo-user',
+              email: 'demo@example.com',
+              user_metadata: { full_name: 'Demo User' }
+            });
+            setLoading(false);
+          } else {
+            setUser(null);
+            setLoading(false);
+            
+            // 只在非登入相關頁面時重定向
+            const publicPages = ['/login', '/test-login'];
+            if (!publicPages.includes(router.pathname)) {
+              router.push('/login');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Auth check error:', err);
         setLoading(false);
-        return;
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      // 如果沒有登入且不在登入頁面，則跳轉到登入頁
-      if (!session?.user && router.pathname !== '/login') {
-        router.push('/login');
       }
     };
 
-    getUser();
+    checkAuth();
 
     // 監聽認證狀態變化
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      console.log('Auth state change:', event, session?.user?.email);
       
       if (event === 'SIGNED_IN' && session?.user) {
-        // 手動同步用戶到 users 表
+        setUser(session.user);
         await syncUserToDatabase(session.user);
-      }
-      
-      if (event === 'SIGNED_OUT' || !session) {
+        
+        // 清除演示模式
+        localStorage.removeItem('demo_logged_in');
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        localStorage.removeItem('demo_logged_in');
         router.push('/login');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [router.pathname]);
 
   return { user, loading };
 }
@@ -83,9 +103,11 @@ export const signOut = async () => {
   // 清除演示模式標記
   localStorage.removeItem('demo_logged_in');
   
+  // Supabase 登出
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error('登出失敗:', error);
   }
+  
   return { error };
 };
