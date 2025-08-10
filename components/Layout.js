@@ -11,7 +11,10 @@ export default function Layout({ children }) {
   const handleLogout = async () => {
     const confirmed = confirm('確定要登出嗎？');
     if (confirmed) {
+      // 清除演示模式標記
+      localStorage.removeItem('demo_logged_in');
       await signOut();
+      router.push('/login');
     }
   };
   
@@ -30,7 +33,7 @@ export default function Layout({ children }) {
   }
   
   // 如果沒有登入，不顯示 Layout
-  if (!user) {
+  if (!user && router.pathname !== '/login') {
     return null;
   }
   

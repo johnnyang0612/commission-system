@@ -80,6 +80,9 @@ const syncUserToDatabase = async (user) => {
 
 // 登出功能
 export const signOut = async () => {
+  // 清除演示模式標記
+  localStorage.removeItem('demo_logged_in');
+  
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error('登出失敗:', error);
