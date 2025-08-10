@@ -39,7 +39,8 @@ export default function Home() {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('role', 'sales');
+      .in('role', ['sales', 'leader'])
+      .order('name');
     
     if (error) console.error(error);
     else setUsers(data || []);
