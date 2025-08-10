@@ -426,6 +426,167 @@ export default function ProjectDetail() {
     }
   }
 
+  async function regenerateInstallments() {
+    if (!supabase || !project) return;
+    
+    try {
+      // 首先刪除現有的期數和分潤記錄
+      const { error: deleteInstallmentsError } = await supabase
+        .from('project_installments')
+        .delete()
+        .eq('project_id', id);
+      
+      if (deleteInstallmentsError) {
+        console.error('刪除期數失敗:', deleteInstallmentsError);
+        alert('刪除現有期數失敗');
+        return;
+      }
+
+      const { error: deleteCommissionsError } = await supabase
+        .from('commissions')
+        .delete()
+        .eq('project_id', id);
+      
+      if (deleteCommissionsError) {
+        console.error('刪除分潤記錄失敗:', deleteCommissionsError);
+      }
+
+      // 使用當前專案設定重新生成期數
+      await generateInstallments(
+        project.id,
+        project.payment_template,
+        project.amount,
+        project.tax_last,
+        project.first_payment_date,
+        project.type,
+        project.assigned_to,
+        project.use_fixed_commission,
+        project.fixed_commission_percentage
+      );
+
+      alert('期數重新生成成功');
+      fetchInstallments();
+      fetchCommissions();
+    } catch (error) {
+      console.error('重新生成期數失敗:', error);
+      alert('重新生成期數失敗');
+    }
+  }
+
+  async function generateInstallments(projectId, template, baseAmount, taxLast, firstPaymentDate, projectType, assignedTo, useFixedCommission, fixedCommissionPercentage) {
+    if (!supabase) return;
+    
+    // Parse payment template (e.g., "3/3/2/2" or "6/4")
+    const ratios = template.split('/').map(r => parseInt(r.trim()));
+    const totalRatio = ratios.reduce((sum, ratio) => sum + ratio, 0);
+    
+    const taxAmount = baseAmount * 0.05;
+    const totalAmount = baseAmount + taxAmount;
+    
+    // 分潤計算：固定分潤 vs 階梯式分潤
+    let totalCommissionAmount = 0;
+    let effectivePercentage = 0;
+    
+    if (useFixedCommission && fixedCommissionPercentage) {
+      // 使用固定分潤比例
+      effectivePercentage = parseFloat(fixedCommissionPercentage);
+      totalCommissionAmount = baseAmount * (effectivePercentage / 100);
+    } else if (projectType === 'new') {
+      // 階梯式分潤計算
+      let remainingAmount = baseAmount;
+      
+      // 第一階：10萬以下 35%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 100000);
+        totalCommissionAmount += tierAmount * 0.35;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第二階：10-30萬 30%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 200000);
+        totalCommissionAmount += tierAmount * 0.30;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第三階：30-60萬 25%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 300000);
+        totalCommissionAmount += tierAmount * 0.25;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第四階：60-100萬 20%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 400000);
+        totalCommissionAmount += tierAmount * 0.20;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第五階：100萬以上 10%
+      if (remainingAmount > 0) {
+        totalCommissionAmount += remainingAmount * 0.10;
+      }
+      
+      effectivePercentage = (totalCommissionAmount / baseAmount) * 100;
+    } else if (projectType === 'renewal') {
+      totalCommissionAmount = baseAmount * 0.15;
+      effectivePercentage = 15;
+    }
+    const commissionPerInstallment = totalCommissionAmount / ratios.length;
+    
+    const installments = [];
+    let currentDate = new Date(firstPaymentDate);
+    
+    ratios.forEach((ratio, index) => {
+      const isLastInstallment = index === ratios.length - 1;
+      let installmentAmount;
+      
+      if (taxLast) {
+        // 稅最後付：前面期數不含稅，最後一期加上稅金
+        const baseInstallmentAmount = (baseAmount * ratio) / totalRatio;
+        installmentAmount = isLastInstallment ? baseInstallmentAmount + taxAmount : baseInstallmentAmount;
+      } else {
+        // 分期含稅：每期按比例分配含稅總額
+        installmentAmount = (totalAmount * ratio) / totalRatio;
+      }
+      
+      installments.push({
+        project_id: projectId,
+        installment_number: index + 1,
+        due_date: currentDate.toISOString().split('T')[0],
+        amount: Math.round(installmentAmount),
+        commission_amount: Math.round(commissionPerInstallment),
+        commission_status: 'pending',
+        status: 'pending'
+      });
+      
+      // 下一期付款日期（每月遞增）
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    });
+    
+    // 建立分潤記錄
+    if (effectivePercentage > 0) {
+      await supabase
+        .from('commissions')
+        .insert([{
+          project_id: projectId,
+          user_id: assignedTo,
+          percentage: effectivePercentage,
+          amount: totalCommissionAmount,
+          status: 'pending'
+        }]);
+    }
+    
+    const { error } = await supabase
+      .from('project_installments')
+      .insert(installments);
+    
+    if (error) {
+      console.error('生成付款期數失敗:', error);
+    }
+  }
+
   if (!project) {
     return (
       <Layout>
@@ -535,6 +696,24 @@ export default function ProjectDetail() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h3 style={{ margin: 0 }}>付款期數管理</h3>
           <div style={{ display: 'flex', gap: '1rem' }}>
+            <button
+              onClick={async () => {
+                const confirmed = confirm('確定要重新生成期數嗎？這將刪除現有期數並根據當前專案設定重新生成。');
+                if (!confirmed) return;
+                
+                await regenerateInstallments();
+              }}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#9b59b6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              自動生成
+            </button>
             <button
               onClick={() => setShowEditForm(!showEditForm)}
               style={{
@@ -876,21 +1055,22 @@ export default function ProjectDetail() {
           </form>
         )}
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>期數</th>
-              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>預定日期</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>應收金額</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>實收金額</th>
-              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>實際付款日</th>
-              <th style={{ padding: '0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>狀態</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>應撥分潤</th>
-              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>實撥分潤</th>
-              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>撥款日</th>
-              <th style={{ padding: '0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>操作</th>
-            </tr>
-          </thead>
+        <div style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '1000px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>期數</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '110px' }}>預定日期</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>應收金額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>實收金額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '110px' }}>實際付款日</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>狀態</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>應撥分潤</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>實撥分潤</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>撥款日</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '120px' }}>操作</th>
+              </tr>
+            </thead>
           <tbody>
             {installments.map(installment => {
               // 計算該期應撥分潤金額
@@ -899,33 +1079,39 @@ export default function ProjectDetail() {
               
               return (
                 <tr key={installment.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                  <td style={{ padding: '0.5rem', fontSize: '0.8rem' }}>第 {installment.installment_number} 期</td>
-                  <td style={{ padding: '0.5rem', fontSize: '0.8rem' }}>{installment.due_date}</td>
-                  <td style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.8rem' }}>NT$ {installment.amount?.toLocaleString()}</td>
-                  <td style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: installment.actual_amount ? 'bold' : 'normal' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>第 {installment.installment_number} 期</td>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>{installment.due_date}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>NT$ {installment.amount?.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: installment.actual_amount ? 'bold' : 'normal' }}>
                     {installment.actual_amount ? `NT$ ${installment.actual_amount.toLocaleString()}` : '-'}
                   </td>
-                  <td style={{ padding: '0.5rem', fontSize: '0.8rem' }}>{installment.payment_date || '-'}</td>
-                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>{installment.payment_date || '-'}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
                     <span style={{
-                      padding: '0.2rem 0.4rem',
-                      borderRadius: '3px',
+                      padding: '0.3rem 0.6rem',
+                      borderRadius: '4px',
                       backgroundColor: installment.status === 'paid' ? '#27ae60' : '#f39c12',
                       color: 'white',
-                      fontSize: '0.7rem'
+                      fontSize: '0.8rem',
+                      fontWeight: '500'
                     }}>
                       {installment.status === 'paid' ? '已付款' : '待付款'}
                     </span>
                   </td>
-                  <td style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.8rem', color: '#27ae60' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#27ae60' }}>
                     {commissionPerInstallment > 0 ? `NT$ ${Math.round(commissionPerInstallment).toLocaleString()}` : '-'}
                   </td>
-                  <td style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 'bold', color: '#e74c3c' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: '#e74c3c' }}>
                     {installment.actual_commission ? `NT$ ${installment.actual_commission.toLocaleString()}` : '-'}
                   </td>
-                  <td style={{ padding: '0.5rem', fontSize: '0.8rem' }}>{installment.commission_payment_date || '-'}</td>
-                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>{installment.commission_payment_date || '-'}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      flexWrap: 'wrap', 
+                      gap: '0.25rem', 
+                      justifyContent: 'center' 
+                    }}>
                       {installment.status !== 'paid' && (
                         <button
                           onClick={() => {
@@ -941,13 +1127,16 @@ export default function ProjectDetail() {
                             updateInstallmentStatus(installment.id, 'paid', paymentDate, actualAmount, actualCommission, commissionDate);
                           }}
                           style={{
-                            padding: '0.2rem 0.4rem',
+                            padding: '0.25rem 0.5rem',
                             backgroundColor: '#27ae60',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '3px',
+                            borderRadius: '4px',
                             cursor: 'pointer',
-                            fontSize: '0.7rem'
+                            fontSize: '0.7rem',
+                            fontWeight: '500',
+                            whiteSpace: 'nowrap',
+                            minWidth: 'fit-content'
                           }}
                         >
                           標記已付
@@ -968,13 +1157,16 @@ export default function ProjectDetail() {
                             updateInstallmentStatus(installment.id, 'paid', paymentDate, actualAmount, actualCommission, commissionDate);
                           }}
                           style={{
-                            padding: '0.2rem 0.4rem',
+                            padding: '0.25rem 0.5rem',
                             backgroundColor: '#f39c12',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '3px',
+                            borderRadius: '4px',
                             cursor: 'pointer',
-                            fontSize: '0.7rem'
+                            fontSize: '0.7rem',
+                            fontWeight: '500',
+                            whiteSpace: 'nowrap',
+                            minWidth: 'fit-content'
                           }}
                         >
                           編輯
@@ -983,13 +1175,16 @@ export default function ProjectDetail() {
                       <button
                         onClick={() => deleteInstallment(installment.id, installment.installment_number)}
                         style={{
-                          padding: '0.2rem 0.4rem',
+                          padding: '0.25rem 0.5rem',
                           backgroundColor: '#95a5a6',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '3px',
+                          borderRadius: '4px',
                           cursor: 'pointer',
-                          fontSize: '0.7rem'
+                          fontSize: '0.7rem',
+                          fontWeight: '500',
+                          whiteSpace: 'nowrap',
+                          minWidth: 'fit-content'
                         }}
                       >
                         刪除
@@ -999,8 +1194,9 @@ export default function ProjectDetail() {
                 </tr>
               );
             })}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
         
         {/* 分潤總覽 */}
         {commissions.length > 0 && (
