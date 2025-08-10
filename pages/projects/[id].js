@@ -766,7 +766,8 @@ export default function ProjectDetail() {
             {canViewFinancialData(userRole) && (() => {
               const totalCosts = costs.reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
               const totalCommissionAmount = commissions.length > 0 ? commissions[0].amount : 0;
-              const expectedProfit = project.amount - totalCosts - totalCommissionAmount;
+              // 預期利潤 = 總案金額 - 分潤總額 - 付出去的成本
+              const expectedProfit = project.amount - totalCommissionAmount - totalCosts;
               const profitMargin = project.amount > 0 ? ((expectedProfit / project.amount) * 100).toFixed(1) : 0;
               
               return (
