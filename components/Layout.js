@@ -38,6 +38,13 @@ export default function Layout({ children }) {
             }}>
               業務人員
             </Link>
+            <Link href="/profile" style={{
+              color: isActive('/profile') ? '#3498db' : 'white',
+              textDecoration: 'none',
+              fontWeight: isActive('/profile') ? 'bold' : 'normal'
+            }}>
+              個人資料
+            </Link>
             <Link href="/commissions" style={{
               color: isActive('/commissions') ? '#3498db' : 'white',
               textDecoration: 'none',

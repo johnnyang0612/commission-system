@@ -9,9 +9,11 @@ export default function ProjectDetail() {
   const [project, setProject] = useState(null);
   const [installments, setInstallments] = useState([]);
   const [commissions, setCommissions] = useState([]);
+  const [costs, setCosts] = useState([]);
   const [users, setUsers] = useState([]);
   const [assignedUser, setAssignedUser] = useState(null);
   const [showAddInstallment, setShowAddInstallment] = useState(false);
+  const [showAddCost, setShowAddCost] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [editFormData, setEditFormData] = useState({});
   const [installmentForm, setInstallmentForm] = useState({
@@ -19,6 +21,13 @@ export default function ProjectDetail() {
     due_date: '',
     amount: '',
     status: 'pending'
+  });
+  const [costForm, setCostForm] = useState({
+    cost_type: '',
+    description: '',
+    amount: '',
+    cost_date: new Date().toISOString().split('T')[0],
+    notes: ''
   });
   const [maintenanceForm, setMaintenanceForm] = useState({
     warranty_period: '',
@@ -33,6 +42,7 @@ export default function ProjectDetail() {
       fetchProject();
       fetchInstallments();
       fetchCommissions();
+      fetchCosts();
       fetchUsers();
     }
   }, [id]);
@@ -105,6 +115,18 @@ export default function ProjectDetail() {
     else setCommissions(data || []);
   }
 
+  async function fetchCosts() {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from('project_costs')
+      .select('*')
+      .eq('project_id', id)
+      .order('cost_date', { ascending: false });
+    
+    if (error) console.error(error);
+    else setCosts(data || []);
+  }
+
   async function handleAddInstallment(e) {
     e.preventDefault();
     if (!supabase) return;
@@ -130,6 +152,56 @@ export default function ProjectDetail() {
         status: 'pending'
       });
       fetchInstallments();
+    }
+  }
+
+  async function handleAddCost(e) {
+    e.preventDefault();
+    if (!supabase) return;
+    
+    const { error } = await supabase
+      .from('project_costs')
+      .insert([{
+        project_id: id,
+        ...costForm,
+        amount: parseFloat(costForm.amount),
+        created_by: 'current_user' // 在實際應用中應該是當前登錄用戶
+      }]);
+    
+    if (error) {
+      console.error(error);
+      alert('新增成本失敗');
+    } else {
+      alert('新增成本成功');
+      setShowAddCost(false);
+      setCostForm({
+        cost_type: '',
+        description: '',
+        amount: '',
+        cost_date: new Date().toISOString().split('T')[0],
+        notes: ''
+      });
+      fetchCosts();
+    }
+  }
+
+  async function deleteCost(costId, description) {
+    if (!supabase) return;
+    
+    const confirmed = confirm(`確定要刪除成本項目「${description}」嗎？`);
+    if (!confirmed) return;
+    
+    const { error } = await supabase
+      .from('project_costs')
+      .delete()
+      .eq('id', costId);
+    
+    if (error) {
+      console.error(error);
+      alert('刪除失敗');
+    } else {
+      alert('刪除成功');
+      fetchCosts();
     }
   }
 
@@ -664,7 +736,7 @@ export default function ProjectDetail() {
           </div>
           
           <div>
-            <h4 style={{ color: '#6c757d', marginBottom: '1rem' }}>收款進度</h4>
+            <h4 style={{ color: '#6c757d', marginBottom: '1rem' }}>財務分析</h4>
             <div style={{
               backgroundColor: '#e9ecef',
               borderRadius: '8px',
@@ -688,6 +760,30 @@ export default function ProjectDetail() {
             </div>
             <p><strong>已收金額：</strong>NT$ {totalPaid.toLocaleString()}</p>
             <p><strong>待收金額：</strong>NT$ {(totalAmount - totalPaid).toLocaleString()}</p>
+            {(() => {
+              const totalCosts = costs.reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
+              const totalCommissionAmount = commissions.length > 0 ? commissions[0].amount : 0;
+              const expectedProfit = project.amount - totalCosts - totalCommissionAmount;
+              const profitMargin = project.amount > 0 ? ((expectedProfit / project.amount) * 100).toFixed(1) : 0;
+              
+              return (
+                <>
+                  <p><strong>總成本：</strong>
+                    <span style={{ color: totalCosts > 0 ? '#e74c3c' : '#6c757d' }}>
+                      NT$ {totalCosts.toLocaleString()}
+                    </span>
+                  </p>
+                  <p><strong>預期利潤：</strong>
+                    <span style={{ 
+                      color: expectedProfit > 0 ? '#27ae60' : '#e74c3c',
+                      fontWeight: 'bold'
+                    }}>
+                      NT$ {expectedProfit.toLocaleString()} ({profitMargin}%)
+                    </span>
+                  </p>
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -1251,6 +1347,256 @@ export default function ProjectDetail() {
         {installments.length === 0 && (
           <div style={{ textAlign: 'center', padding: '2rem', color: '#6c757d' }}>
             尚未設定付款期數
+          </div>
+        )}
+      </div>
+
+      {/* 成本管理區塊 */}
+      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', marginBottom: '2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h3 style={{ margin: 0 }}>專案成本管理</h3>
+          <button
+            onClick={() => setShowAddCost(!showAddCost)}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#e67e22',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            {showAddCost ? '取消' : '新增成本'}
+          </button>
+        </div>
+
+        {showAddCost && (
+          <form onSubmit={handleAddCost} style={{
+            backgroundColor: '#fef9e7',
+            padding: '1.5rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            border: '1px solid #f1c40f'
+          }}>
+            <h4>新增成本項目</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                  成本類型 *
+                </label>
+                <select
+                  value={costForm.cost_type}
+                  onChange={(e) => setCostForm({...costForm, cost_type: e.target.value})}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                >
+                  <option value="">請選擇成本類型</option>
+                  <option value="公司內部成本">公司內部成本</option>
+                  <option value="外包成本">外包成本</option>
+                  <option value="設備成本">設備成本</option>
+                  <option value="人力成本">人力成本</option>
+                  <option value="行銷成本">行銷成本</option>
+                  <option value="其他成本">其他成本</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                  成本金額 *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={costForm.amount}
+                  onChange={(e) => setCostForm({...costForm, amount: e.target.value})}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                  成本日期 *
+                </label>
+                <input
+                  type="date"
+                  value={costForm.cost_date}
+                  onChange={(e) => setCostForm({...costForm, cost_date: e.target.value})}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                  描述
+                </label>
+                <input
+                  type="text"
+                  value={costForm.description}
+                  onChange={(e) => setCostForm({...costForm, description: e.target.value})}
+                  placeholder="成本項目詳細描述"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                備註
+              </label>
+              <textarea
+                value={costForm.notes}
+                onChange={(e) => setCostForm({...costForm, notes: e.target.value})}
+                rows="3"
+                placeholder="其他備註資訊"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+            <button
+              type="submit"
+              style={{
+                padding: '0.5rem 2rem',
+                backgroundColor: '#27ae60',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '1rem'
+              }}
+            >
+              確認新增
+            </button>
+          </form>
+        )}
+
+        <div style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '800px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '120px' }}>成本類型</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '200px' }}>描述</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>金額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>日期</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '150px' }}>備註</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costs.map(cost => (
+                <tr key={cost.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>
+                    <span style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      backgroundColor: cost.cost_type === '公司內部成本' ? '#3498db' : 
+                                     cost.cost_type === '外包成本' ? '#e67e22' :
+                                     cost.cost_type === '設備成本' ? '#9b59b6' :
+                                     cost.cost_type === '人力成本' ? '#27ae60' :
+                                     cost.cost_type === '行銷成本' ? '#f39c12' : '#95a5a6',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {cost.cost_type}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>{cost.description || '-'}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: '#e74c3c' }}>
+                    NT$ {parseFloat(cost.amount).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', whiteSpace: 'nowrap' }}>{cost.cost_date}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {cost.notes || '-'}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                    <button
+                      onClick={() => deleteCost(cost.id, cost.description || cost.cost_type)}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        backgroundColor: '#e74c3c',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem'
+                      }}
+                    >
+                      刪除
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          {costs.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '2rem', color: '#6c757d' }}>
+              尚未新增成本項目
+            </div>
+          )}
+        </div>
+
+        {/* 成本總覽 */}
+        {costs.length > 0 && (
+          <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fef2e0', borderRadius: '8px' }}>
+            <h4 style={{ margin: '0 0 1rem 0', color: '#e67e22' }}>成本總覽</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+              {(() => {
+                const costSummary = costs.reduce((acc, cost) => {
+                  const type = cost.cost_type;
+                  if (!acc[type]) acc[type] = 0;
+                  acc[type] += parseFloat(cost.amount);
+                  return acc;
+                }, {});
+                
+                const totalCosts = Object.values(costSummary).reduce((sum, amount) => sum + amount, 0);
+                
+                return (
+                  <>
+                    {Object.entries(costSummary).map(([type, amount]) => (
+                      <div key={type}>
+                        <strong>{type}：</strong>
+                        <span style={{ color: '#e74c3c' }}>NT$ {amount.toLocaleString()}</span>
+                      </div>
+                    ))}
+                    <div style={{ 
+                      gridColumn: '1 / -1',
+                      borderTop: '2px solid #e67e22',
+                      paddingTop: '0.5rem',
+                      marginTop: '0.5rem'
+                    }}>
+                      <strong>總成本：</strong>
+                      <span style={{ color: '#e74c3c', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                        NT$ {totalCosts.toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         )}
       </div>
