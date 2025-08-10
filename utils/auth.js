@@ -10,6 +10,18 @@ export function useAuth() {
   useEffect(() => {
     // 獲取當前用戶
     const getUser = async () => {
+      // 檢查演示模式
+      const demoLoggedIn = localStorage.getItem('demo_logged_in');
+      if (demoLoggedIn === 'true') {
+        setUser({
+          id: 'demo-user',
+          email: 'demo@example.com',
+          user_metadata: { full_name: 'Demo User' }
+        });
+        setLoading(false);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
       setLoading(false);

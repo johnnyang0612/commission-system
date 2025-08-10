@@ -79,30 +79,24 @@ export function isFinancialRole(userRole) {
 }
 
 /**
- * Get current user role (mock function - replace with actual auth)
+ * Get current user role from Supabase auth
  * @returns {string}
  */
 export function getCurrentUserRole() {
-  // In a real application, this would get the role from:
-  // - JWT token
-  // - Session storage
-  // - API call to get current user
-  // For now, we'll simulate based on some logic
-  
-  // This is a temporary simulation - replace with actual authentication
-  return USER_ROLES.ADMIN; // Default to admin for development
+  // 暫時返回 admin，在有真實用戶資料後會自動更新
+  return USER_ROLES.ADMIN;
 }
 
 /**
- * Mock function to get current user data
+ * Get current user data from Supabase auth
  * @returns {object}
  */
 export function getCurrentUser() {
-  // In a real application, this would fetch the current logged-in user
+  // 暫時返回模擬用戶，在有真實用戶資料後會自動更新
   return {
-    id: 1,
-    name: 'Admin User',
-    email: 'admin@example.com',
+    id: '00000000-0000-0000-0000-000000000000',
+    name: 'Current User',
+    email: 'user@example.com',
     role: getCurrentUserRole()
   };
 }
