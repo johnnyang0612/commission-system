@@ -1,7 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
-import Layout from '../../components/Layout';
 import { canViewFinancialData, canEditCosts, getCurrentUserRole } from '../../utils/permissions';
 
 export default function ProjectDetail() {
@@ -701,9 +700,7 @@ export default function ProjectDetail() {
 
   if (!project) {
     return (
-      <Layout>
-        <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
-      </Layout>
+      <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
     );
   }
 
@@ -715,7 +712,6 @@ export default function ProjectDetail() {
   const paymentProgress = (totalPaid / totalAmount * 100).toFixed(1);
 
   return (
-    <Layout>
       <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button
           onClick={() => router.push('/')}
@@ -1892,6 +1888,5 @@ export default function ProjectDetail() {
           </button>
         </form>
       </div>
-    </Layout>
   );
 }

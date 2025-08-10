@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import Layout from '../components/Layout';
 import { canViewFinancialData, getCurrentUser, getCurrentUserRole } from '../utils/permissions';
 
 export default function Payments() {
@@ -211,7 +210,6 @@ export default function Payments() {
   };
 
   return (
-    <Layout>
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <h2 style={{ margin: 0 }}>付款記錄管理</h2>
@@ -440,6 +438,5 @@ export default function Payments() {
           )}
         </div>
       </div>
-    </Layout>
   );
 }

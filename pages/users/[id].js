@@ -1,7 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
-import Layout from '../../components/Layout';
 
 export default function UserDetail() {
   const router = useRouter();
@@ -182,9 +181,7 @@ export default function UserDetail() {
 
   if (!user) {
     return (
-      <Layout>
-        <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
-      </Layout>
+      <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
     );
   }
 
@@ -199,7 +196,6 @@ export default function UserDetail() {
   };
 
   return (
-    <Layout>
       <div style={{ marginBottom: '2rem' }}>
         <button
           onClick={() => router.push('/users')}
@@ -544,6 +540,5 @@ export default function UserDetail() {
           </div>
         )}
       </div>
-    </Layout>
   );
 }
