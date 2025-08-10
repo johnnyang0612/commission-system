@@ -1,10 +1,38 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useAuth, signOut } from '../utils/auth';
 
 export default function Layout({ children }) {
   const router = useRouter();
+  const { user, loading } = useAuth();
   
   const isActive = (path) => router.pathname === path;
+  
+  const handleLogout = async () => {
+    const confirmed = confirm('確定要登出嗎？');
+    if (confirmed) {
+      await signOut();
+    }
+  };
+  
+  // 如果正在載入認證狀態，顯示載入畫面
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh' 
+      }}>
+        <div>載入中...</div>
+      </div>
+    );
+  }
+  
+  // 如果沒有登入，不顯示 Layout
+  if (!user) {
+    return null;
+  }
   
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
@@ -59,6 +87,27 @@ export default function Layout({ children }) {
             }}>
               付款記錄
             </Link>
+          </div>
+          
+          {/* 用戶資訊和登出按鈕 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <span style={{ color: 'white', fontSize: '0.9rem' }}>
+              {user?.email}
+            </span>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#e74c3c',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.9rem'
+              }}
+            >
+              登出
+            </button>
           </div>
         </div>
       </nav>
