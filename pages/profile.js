@@ -24,13 +24,12 @@ export default function Profile() {
   async function fetchUserProfile() {
     if (!supabase) return;
     
-    // 假設我們使用第一個銷售人員作為當前用戶
+    // 暫時使用模擬的當前用戶資料
     // 在實際應用中，這裡應該根據登錄狀態獲取當前用戶
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .in('role', ['sales', 'leader'])
-      .limit(1)
+      .eq('email', 'admin@example.com') // 使用admin用戶作為示例
       .single();
     
     if (error) {
