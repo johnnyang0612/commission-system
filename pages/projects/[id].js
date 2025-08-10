@@ -1199,32 +1199,54 @@ export default function ProjectDetail() {
         </div>
         
         {/* 分潤總覽 */}
-        {commissions.length > 0 && (
-          <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
-            <h4 style={{ margin: '0 0 1rem 0', color: '#27ae60' }}>分潤資訊</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-              <div>
-                <strong>分潤比例：</strong>{commissions[0].percentage}%
-              </div>
-              <div>
-                <strong>分潤總額：</strong>NT$ {commissions[0].amount.toLocaleString()}
-              </div>
-              <div>
-                <strong>撥款狀態：</strong>
-                <span style={{
-                  marginLeft: '0.5rem',
-                  padding: '0.25rem 0.5rem',
-                  borderRadius: '4px',
-                  backgroundColor: commissions[0].status === 'paid' ? '#27ae60' : '#f39c12',
-                  color: 'white',
-                  fontSize: '0.875rem'
-                }}>
-                  {commissions[0].status === 'paid' ? '已撥款' : '待撥款'}
-                </span>
+        {commissions.length > 0 && (() => {
+          // 計算已撥款和待撥款金額
+          const totalPaidCommission = installments
+            .filter(i => i.actual_commission && i.actual_commission > 0)
+            .reduce((sum, i) => sum + parseFloat(i.actual_commission), 0);
+          
+          const totalCommissionAmount = commissions[0].amount;
+          const remainingCommission = totalCommissionAmount - totalPaidCommission;
+          
+          return (
+            <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
+              <h4 style={{ margin: '0 0 1rem 0', color: '#27ae60' }}>分潤資訊</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <strong>分潤比例：</strong>{commissions[0].percentage.toFixed(1)}%
+                </div>
+                <div>
+                  <strong>分潤總額：</strong>NT$ {totalCommissionAmount.toLocaleString()}
+                </div>
+                <div>
+                  <strong>已撥金額：</strong>
+                  <span style={{ color: '#27ae60', fontWeight: 'bold' }}>
+                    NT$ {totalPaidCommission.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <strong>待撥金額：</strong>
+                  <span style={{ color: remainingCommission > 0 ? '#e74c3c' : '#27ae60', fontWeight: 'bold' }}>
+                    NT$ {remainingCommission.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <strong>撥款狀態：</strong>
+                  <span style={{
+                    marginLeft: '0.5rem',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '4px',
+                    backgroundColor: remainingCommission <= 0 ? '#27ae60' : '#f39c12',
+                    color: 'white',
+                    fontSize: '0.875rem'
+                  }}>
+                    {remainingCommission <= 0 ? '已全額撥款' : `待撥 ${((remainingCommission / totalCommissionAmount) * 100).toFixed(1)}%`}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         
         {installments.length === 0 && (
           <div style={{ textAlign: 'center', padding: '2rem', color: '#6c757d' }}>
