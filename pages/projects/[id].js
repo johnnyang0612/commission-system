@@ -712,6 +712,7 @@ export default function ProjectDetail() {
   const paymentProgress = (totalPaid / totalAmount * 100).toFixed(1);
 
   return (
+    <div>
       <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button
           onClick={() => router.push('/')}
@@ -1888,5 +1889,6 @@ export default function ProjectDetail() {
           </button>
         </form>
       </div>
+    </div>
   );
 }

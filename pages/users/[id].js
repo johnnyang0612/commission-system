@@ -196,6 +196,7 @@ export default function UserDetail() {
   };
 
   return (
+    <div>
       <div style={{ marginBottom: '2rem' }}>
         <button
           onClick={() => router.push('/users')}
@@ -540,5 +541,6 @@ export default function UserDetail() {
           </div>
         )}
       </div>
+    </div>
   );
 }
