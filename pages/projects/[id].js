@@ -29,7 +29,10 @@ export default function ProjectDetail() {
     description: '',
     amount: '',
     cost_date: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    installment_number: '', // 關聯期數，空值代表直接支出
+    is_paid: false, // 是否已支付
+    paid_date: '' // 支付日期
   });
   const [maintenanceForm, setMaintenanceForm] = useState({
     warranty_period: '',
@@ -162,14 +165,22 @@ export default function ProjectDetail() {
     e.preventDefault();
     if (!supabase) return;
     
+    const costData = {
+      project_id: id,
+      cost_type: costForm.cost_type,
+      description: costForm.description,
+      amount: parseFloat(costForm.amount),
+      cost_date: costForm.cost_date,
+      notes: costForm.notes,
+      installment_number: costForm.installment_number ? parseInt(costForm.installment_number) : null,
+      is_paid: costForm.is_paid,
+      paid_date: costForm.is_paid ? costForm.paid_date : null,
+      created_by: 'current_user' // 在實際應用中應該是當前登錄用戶
+    };
+    
     const { error } = await supabase
       .from('project_costs')
-      .insert([{
-        project_id: id,
-        ...costForm,
-        amount: parseFloat(costForm.amount),
-        created_by: 'current_user' // 在實際應用中應該是當前登錄用戶
-      }]);
+      .insert([costData]);
     
     if (error) {
       console.error(error);
@@ -182,8 +193,34 @@ export default function ProjectDetail() {
         description: '',
         amount: '',
         cost_date: new Date().toISOString().split('T')[0],
-        notes: ''
+        notes: '',
+        installment_number: '',
+        is_paid: false,
+        paid_date: ''
       });
+      fetchCosts();
+    }
+  }
+
+  async function markCostAsPaid(costId) {
+    if (!supabase) return;
+    
+    const paidDate = prompt('請輸入實際支付日期 (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    if (!paidDate) return;
+    
+    const { error } = await supabase
+      .from('project_costs')
+      .update({ 
+        is_paid: true, 
+        paid_date: paidDate 
+      })
+      .eq('id', costId);
+    
+    if (error) {
+      console.error(error);
+      alert('更新失敗');
+    } else {
+      alert('成本已標記為已支出');
       fetchCosts();
     }
   }
@@ -764,14 +801,27 @@ export default function ProjectDetail() {
             <p><strong>已收金額：</strong>NT$ {totalPaid.toLocaleString()}</p>
             <p><strong>待收金額：</strong>NT$ {(totalAmount - totalPaid).toLocaleString()}</p>
             {canViewFinancialData(userRole) && (() => {
-              const totalCosts = costs.reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
+              // 分別計算已支出和待支出成本
+              const paidCosts = costs.filter(cost => cost.is_paid).reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
+              const unpaidCosts = costs.filter(cost => !cost.is_paid).reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
+              const totalCosts = paidCosts + unpaidCosts;
               const totalCommissionAmount = commissions.length > 0 ? commissions[0].amount : 0;
-              // 預期利潤 = 總案金額 - 分潤總額 - 付出去的成本
+              // 預期利潤 = 總案金額 - 分潤總額 - 已支出成本 - 待支出成本
               const expectedProfit = project.amount - totalCommissionAmount - totalCosts;
               const profitMargin = project.amount > 0 ? ((expectedProfit / project.amount) * 100).toFixed(1) : 0;
               
               return (
                 <>
+                  <p><strong>已支出成本：</strong>
+                    <span style={{ color: paidCosts > 0 ? '#e74c3c' : '#6c757d' }}>
+                      NT$ {paidCosts.toLocaleString()}
+                    </span>
+                  </p>
+                  <p><strong>待支出成本：</strong>
+                    <span style={{ color: unpaidCosts > 0 ? '#f39c12' : '#6c757d' }}>
+                      NT$ {unpaidCosts.toLocaleString()}
+                    </span>
+                  </p>
                   <p><strong>總成本：</strong>
                     <span style={{ color: totalCosts > 0 ? '#e74c3c' : '#6c757d' }}>
                       NT$ {totalCosts.toLocaleString()}
@@ -1482,6 +1532,77 @@ export default function ProjectDetail() {
                 />
               </div>
             </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                  關聯期數
+                </label>
+                <select
+                  value={costForm.installment_number}
+                  onChange={(e) => setCostForm({...costForm, installment_number: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                >
+                  <option value="">直接支出（不綁定期數）</option>
+                  {installments.map(installment => (
+                    <option key={installment.id} value={installment.installment_number}>
+                      第 {installment.installment_number} 期 (NT$ {installment.amount?.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                  支付狀態
+                </label>
+                <select
+                  value={costForm.is_paid ? 'true' : 'false'}
+                  onChange={(e) => {
+                    const isPaid = e.target.value === 'true';
+                    setCostForm({
+                      ...costForm, 
+                      is_paid: isPaid,
+                      paid_date: isPaid ? new Date().toISOString().split('T')[0] : ''
+                    });
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px'
+                  }}
+                >
+                  <option value="false">待支出</option>
+                  <option value="true">已支出</option>
+                </select>
+              </div>
+              
+              {costForm.is_paid && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    支付日期
+                  </label>
+                  <input
+                    type="date"
+                    value={costForm.paid_date}
+                    onChange={(e) => setCostForm({...costForm, paid_date: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
                 備註
@@ -1521,11 +1642,13 @@ export default function ProjectDetail() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '800px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '120px' }}>成本類型</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '200px' }}>描述</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>金額</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>日期</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '150px' }}>備註</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>成本類型</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '150px' }}>描述</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '80px' }}>金額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '60px' }}>期數</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>支付狀態</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '80px' }}>支付日期</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>備註</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>操作</th>
               </tr>
             </thead>
@@ -1552,25 +1675,59 @@ export default function ProjectDetail() {
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: '#e74c3c' }}>
                     NT$ {parseFloat(cost.amount).toLocaleString()}
                   </td>
-                  <td style={{ padding: '0.75rem 0.5rem', whiteSpace: 'nowrap' }}>{cost.cost_date}</td>
-                  <td style={{ padding: '0.75rem 0.5rem', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                    {cost.installment_number ? `第${cost.installment_number}期` : '直接支出'}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                    <span style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      backgroundColor: cost.is_paid ? '#27ae60' : '#f39c12',
+                      color: 'white',
+                      fontSize: '0.75rem'
+                    }}>
+                      {cost.is_paid ? '已支出' : '待支出'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>
+                    {cost.is_paid && cost.paid_date ? cost.paid_date : '-'}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {cost.notes || '-'}
                   </td>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
-                    <button
-                      onClick={() => deleteCost(cost.id, cost.description || cost.cost_type)}
-                      style={{
-                        padding: '0.25rem 0.5rem',
-                        backgroundColor: '#e74c3c',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.7rem'
-                      }}
-                    >
-                      刪除
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                      {!cost.is_paid && (
+                        <button
+                          onClick={() => markCostAsPaid(cost.id)}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#27ae60',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.7rem'
+                          }}
+                        >
+                          標記已支出
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteCost(cost.id, cost.description || cost.cost_type)}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#e74c3c',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        刪除
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
