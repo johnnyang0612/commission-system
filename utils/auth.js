@@ -23,9 +23,14 @@ export function useAuth() {
     getUser();
 
     // 監聽認證狀態變化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        // 手動同步用戶到 users 表
+        await syncUserToDatabase(session.user);
+      }
       
       if (event === 'SIGNED_OUT' || !session) {
         router.push('/login');
@@ -37,6 +42,29 @@ export function useAuth() {
 
   return { user, loading };
 }
+
+// 手動同步用戶到資料庫
+const syncUserToDatabase = async (user) => {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .upsert({
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.full_name || user.email.split('@')[0],
+        role: 'sales',
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'id'
+      });
+    
+    if (error) {
+      console.error('同步用戶資料失敗:', error);
+    }
+  } catch (err) {
+    console.error('同步用戶資料錯誤:', err);
+  }
+};
 
 // 登出功能
 export const signOut = async () => {
