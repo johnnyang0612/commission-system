@@ -502,6 +502,7 @@ export default function Home() {
                 <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>稅金</th>
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>負責業務</th>
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>建立時間</th>
+                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -541,6 +542,22 @@ export default function Home() {
                   <td style={{ padding: '1rem' }}>{project.users?.name || '-'}</td>
                   <td style={{ padding: '1rem' }}>
                     {new Date(project.created_at).toLocaleDateString('zh-TW')}
+                  </td>
+                  <td style={{ padding: '1rem', textAlign: 'center' }}>
+                    <button
+                      onClick={() => window.open(`/projects/${project.id}`, '_blank')}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#3498db',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem'
+                      }}
+                    >
+                      查看詳情
+                    </button>
                   </td>
                 </tr>
               ))}
