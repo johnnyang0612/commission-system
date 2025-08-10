@@ -299,7 +299,20 @@ export default function Commissions() {
             <tbody>
               {commissions.map(commission => (
                 <tr key={commission.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                  <td style={{ padding: '1rem' }}>{commission.project?.project_code}</td>
+                  <td style={{ padding: '1rem' }}>
+                    <a 
+                      href={`/projects/${commission.project_id}`}
+                      style={{ 
+                        color: '#3498db', 
+                        textDecoration: 'none',
+                        fontWeight: 'bold' 
+                      }}
+                      onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
+                      onMouseOut={(e) => e.target.style.textDecoration = 'none'}
+                    >
+                      {commission.project?.project_code}
+                    </a>
+                  </td>
                   <td style={{ padding: '1rem' }}>{commission.project?.client_name}</td>
                   <td style={{ padding: '1rem' }}>{commission.user?.name}</td>
                   <td style={{ padding: '1rem', textAlign: 'right' }}>

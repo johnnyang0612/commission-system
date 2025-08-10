@@ -405,7 +405,20 @@ export default function Payments() {
                   <td style={{ padding: '1rem' }}>
                     {new Date(payment.payment_date).toLocaleDateString('zh-TW')}
                   </td>
-                  <td style={{ padding: '1rem' }}>{payment.project?.project_code}</td>
+                  <td style={{ padding: '1rem' }}>
+                    <a 
+                      href={`/projects/${payment.project_id}`}
+                      style={{ 
+                        color: '#3498db', 
+                        textDecoration: 'none',
+                        fontWeight: 'bold' 
+                      }}
+                      onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
+                      onMouseOut={(e) => e.target.style.textDecoration = 'none'}
+                    >
+                      {payment.project?.project_code}
+                    </a>
+                  </td>
                   <td style={{ padding: '1rem' }}>{payment.project?.client_name}</td>
                   <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 'bold', color: '#27ae60' }}>
                     NT$ {payment.amount?.toLocaleString()}
