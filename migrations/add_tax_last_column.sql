@@ -1,22 +1,81 @@
--- Add new columns to projects table
-ALTER TABLE projects 
-ADD COLUMN project_name TEXT,
-ADD COLUMN contact_person TEXT,
-ADD COLUMN contact_phone TEXT,
-ADD COLUMN contact_email TEXT,
-ADD COLUMN tax_id TEXT,
-ADD COLUMN sign_date DATE,
-ADD COLUMN first_payment_date DATE,
-ADD COLUMN expected_completion_date DATE,
-ADD COLUMN tax_last BOOLEAN DEFAULT false,
-ADD COLUMN warranty_period INTEGER,
-ADD COLUMN actual_completion_date DATE,
-ADD COLUMN maintenance_start_date DATE,
-ADD COLUMN maintenance_billing_date DATE,
-ADD COLUMN maintenance_fee NUMERIC;
+-- Safe migration script - checks for existing columns/tables before creating
 
--- Create project_installments table
-CREATE TABLE project_installments (
+-- Function to safely add columns if they don't exist
+DO $$ 
+BEGIN
+    -- Add project_name column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'project_name') THEN
+        ALTER TABLE projects ADD COLUMN project_name TEXT;
+    END IF;
+    
+    -- Add contact_person column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'contact_person') THEN
+        ALTER TABLE projects ADD COLUMN contact_person TEXT;
+    END IF;
+    
+    -- Add contact_phone column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'contact_phone') THEN
+        ALTER TABLE projects ADD COLUMN contact_phone TEXT;
+    END IF;
+    
+    -- Add contact_email column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'contact_email') THEN
+        ALTER TABLE projects ADD COLUMN contact_email TEXT;
+    END IF;
+    
+    -- Add tax_id column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'tax_id') THEN
+        ALTER TABLE projects ADD COLUMN tax_id TEXT;
+    END IF;
+    
+    -- Add sign_date column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'sign_date') THEN
+        ALTER TABLE projects ADD COLUMN sign_date DATE;
+    END IF;
+    
+    -- Add first_payment_date column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'first_payment_date') THEN
+        ALTER TABLE projects ADD COLUMN first_payment_date DATE;
+    END IF;
+    
+    -- Add expected_completion_date column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'expected_completion_date') THEN
+        ALTER TABLE projects ADD COLUMN expected_completion_date DATE;
+    END IF;
+    
+    -- Add tax_last column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'tax_last') THEN
+        ALTER TABLE projects ADD COLUMN tax_last BOOLEAN DEFAULT false;
+    END IF;
+    
+    -- Add warranty_period column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'warranty_period') THEN
+        ALTER TABLE projects ADD COLUMN warranty_period INTEGER;
+    END IF;
+    
+    -- Add actual_completion_date column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'actual_completion_date') THEN
+        ALTER TABLE projects ADD COLUMN actual_completion_date DATE;
+    END IF;
+    
+    -- Add maintenance_start_date column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'maintenance_start_date') THEN
+        ALTER TABLE projects ADD COLUMN maintenance_start_date DATE;
+    END IF;
+    
+    -- Add maintenance_billing_date column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'maintenance_billing_date') THEN
+        ALTER TABLE projects ADD COLUMN maintenance_billing_date DATE;
+    END IF;
+    
+    -- Add maintenance_fee column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'maintenance_fee') THEN
+        ALTER TABLE projects ADD COLUMN maintenance_fee NUMERIC;
+    END IF;
+END $$;
+
+-- Create project_installments table if it doesn't exist
+CREATE TABLE IF NOT EXISTS project_installments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     installment_number INTEGER NOT NULL,
@@ -28,10 +87,15 @@ CREATE TABLE project_installments (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create index on project_installments
-CREATE INDEX idx_project_installments_project_id ON project_installments(project_id);
+-- Create index on project_installments if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_project_installments_project_id') THEN
+        CREATE INDEX idx_project_installments_project_id ON project_installments(project_id);
+    END IF;
+END $$;
 
--- Update existing records to have tax_last as false
+-- Update existing records to have tax_last as false (safe update)
 UPDATE projects 
 SET tax_last = false 
 WHERE tax_last IS NULL;
