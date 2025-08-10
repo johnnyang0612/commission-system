@@ -47,13 +47,14 @@ export default function Payments() {
     const user = getCurrentUser();
     const role = getCurrentUserRole();
     
+    // 暫時移除角色過濾，確保資料可以正常載入
+    // 在實際部署時需要根據真實的用戶資料進行過濾
     if (role === 'sales') {
-      // Sales can only see their own projects
-      query = query.eq('project.assigned_to', user.id);
+      // 當有真實用戶系統時，可以啟用這個過濾
+      // query = query.eq('project.assigned_to', user.id);
     } else if (role === 'leader') {
-      // Leaders see their own + direct reports
-      // This would need actual user hierarchy data - for now showing all
-      // In real implementation: query = query.or(`project.assigned_to.eq.${user.id},project.manager_id.eq.${user.id}`);
+      // 當有真實用戶階層資料時，可以啟用這個過濾
+      // query = query.or(`project.assigned_to.eq.${user.id},project.manager_id.eq.${user.id}`);
     }
     // Admin and Finance can see all payments
     
@@ -72,10 +73,10 @@ export default function Payments() {
     const user = getCurrentUser();
     const role = getCurrentUserRole();
     
+    // 暫時移除角色過濾，確保專案資料可以正常載入
     if (role === 'sales') {
-      query = query.eq('assigned_to', user.id);
+      // query = query.eq('assigned_to', user.id);
     } else if (role === 'leader') {
-      // Leaders see their own + direct reports
       // query = query.or(`assigned_to.eq.${user.id},manager_id.eq.${user.id}`);
     }
     

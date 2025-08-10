@@ -46,12 +46,12 @@ export default function Commissions() {
     const user = getCurrentUser();
     const role = getCurrentUserRole();
     
+    // 暫時移除角色過濾，確保分潤資料可以正常載入
     if (role === 'sales') {
-      // Sales can only see their own commissions
-      query = query.eq('user_id', user.id);
+      // 當有真實用戶系統時，可以啟用這個過濾
+      // query = query.eq('user_id', user.id);
     } else if (role === 'leader') {
-      // Leaders see their own + direct reports commissions
-      // This would need actual user hierarchy data
+      // 當有真實用戶階層資料時，可以啟用這個過濾
       // query = query.or(`user_id.eq.${user.id},project.manager_id.eq.${user.id}`);
     }
     // Admin and Finance can see all commissions
@@ -71,10 +71,10 @@ export default function Commissions() {
     const user = getCurrentUser();
     const role = getCurrentUserRole();
     
+    // 暫時移除角色過濾，確保專案資料可以正常載入
     if (role === 'sales') {
-      query = query.eq('assigned_to', user.id);
+      // query = query.eq('assigned_to', user.id);
     } else if (role === 'leader') {
-      // Leaders see their own + direct reports
       // query = query.or(`assigned_to.eq.${user.id},manager_id.eq.${user.id}`);
     }
     
