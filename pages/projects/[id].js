@@ -375,64 +375,202 @@ export default function ProjectDetail() {
             border: '1px solid #ffeaa7'
           }}>
             <h4>編輯專案資訊</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <input
-                type="text"
-                placeholder="客戶名稱"
-                value={editFormData.client_name || ''}
-                onChange={(e) => setEditFormData({...editFormData, client_name: e.target.value})}
-                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-              />
-              <input
-                type="text"
-                placeholder="專案名稱"
-                value={editFormData.project_name || ''}
-                onChange={(e) => setEditFormData({...editFormData, project_name: e.target.value})}
-                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-              />
-              <input
-                type="text"
-                placeholder="聯絡人"
-                value={editFormData.contact_person || ''}
-                onChange={(e) => setEditFormData({...editFormData, contact_person: e.target.value})}
-                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-              />
-              <input
-                type="tel"
-                placeholder="電話"
-                value={editFormData.contact_phone || ''}
-                onChange={(e) => setEditFormData({...editFormData, contact_phone: e.target.value})}
-                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={editFormData.contact_email || ''}
-                onChange={(e) => setEditFormData({...editFormData, contact_email: e.target.value})}
-                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-              />
-              <input
-                type="date"
-                placeholder="預計完成日期"
-                value={editFormData.expected_completion_date || ''}
-                onChange={(e) => setEditFormData({...editFormData, expected_completion_date: e.target.value})}
-                style={{ padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-              />
+            
+            <h5 style={{ marginBottom: '1rem', color: '#2c3e50' }}>客戶資訊</h5>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>客戶名稱 *</label>
+                <input
+                  type="text"
+                  value={editFormData.client_name || ''}
+                  onChange={(e) => setEditFormData({...editFormData, client_name: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>專案名稱 *</label>
+                <input
+                  type="text"
+                  value={editFormData.project_name || ''}
+                  onChange={(e) => setEditFormData({...editFormData, project_name: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>聯絡人 *</label>
+                <input
+                  type="text"
+                  value={editFormData.contact_person || ''}
+                  onChange={(e) => setEditFormData({...editFormData, contact_person: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>聯絡電話 *</label>
+                <input
+                  type="tel"
+                  value={editFormData.contact_phone || ''}
+                  onChange={(e) => setEditFormData({...editFormData, contact_phone: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>聯絡 Email *</label>
+                <input
+                  type="email"
+                  value={editFormData.contact_email || ''}
+                  onChange={(e) => setEditFormData({...editFormData, contact_email: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>統一編號/身分證 *</label>
+                <input
+                  type="text"
+                  value={editFormData.tax_id || ''}
+                  onChange={(e) => setEditFormData({...editFormData, tax_id: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
             </div>
-            <button
-              type="submit"
-              style={{
-                marginTop: '1rem',
-                padding: '0.75rem 2rem',
-                backgroundColor: '#27ae60',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              確認更新
-            </button>
+
+            <h5 style={{ marginBottom: '1rem', color: '#2c3e50' }}>專案資訊</h5>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>簽約日期 *</label>
+                <input
+                  type="date"
+                  value={editFormData.sign_date || ''}
+                  onChange={(e) => setEditFormData({...editFormData, sign_date: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>第一筆款項付款日期 *</label>
+                <input
+                  type="date"
+                  value={editFormData.first_payment_date || ''}
+                  onChange={(e) => setEditFormData({...editFormData, first_payment_date: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>預計完成日期 *</label>
+                <input
+                  type="date"
+                  value={editFormData.expected_completion_date || ''}
+                  onChange={(e) => setEditFormData({...editFormData, expected_completion_date: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>未稅總額 *</label>
+                <input
+                  type="number"
+                  value={editFormData.amount || ''}
+                  onChange={(e) => setEditFormData({...editFormData, amount: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+                {editFormData.amount && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#6c757d' }}>
+                    含稅總額 (5%): NT$ {(parseFloat(editFormData.amount) * 1.05).toLocaleString()}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>專案類型 *</label>
+                <select
+                  value={editFormData.type || ''}
+                  onChange={(e) => setEditFormData({...editFormData, type: e.target.value})}
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="new">新簽</option>
+                  <option value="renewal">續簽</option>
+                  <option value="maintenance">維護費</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>付款模板 *</label>
+                <input
+                  type="text"
+                  value={editFormData.payment_template || ''}
+                  onChange={(e) => setEditFormData({...editFormData, payment_template: e.target.value})}
+                  placeholder="例如: 6/4, 3/2/3/2"
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+            </div>
+
+            <h5 style={{ marginBottom: '1rem', color: '#2c3e50' }}>付款設定</h5>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>稅金付款時機</label>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    checked={!editFormData.tax_last}
+                    onChange={() => setEditFormData({...editFormData, tax_last: false})}
+                    style={{ marginRight: '0.5rem' }}
+                  />
+                  分期含稅
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    checked={editFormData.tax_last}
+                    onChange={() => setEditFormData({...editFormData, tax_last: true})}
+                    style={{ marginRight: '0.5rem' }}
+                  />
+                  稅最後付
+                </label>
+              </div>
+              <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#6c757d' }}>
+                {editFormData.tax_last ? '稅金將與最後一期款項一起支付' : '每期款項包含稅金'}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                type="submit"
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#27ae60',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '1rem'
+                }}
+              >
+                確認更新
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEditForm(false)}
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '1rem'
+                }}
+              >
+                取消
+              </button>
+            </div>
           </form>
         )}
 
