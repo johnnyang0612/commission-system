@@ -19,11 +19,20 @@ export default function Users() {
     if (!supabase) return;
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select(`
+        *,
+        supervisor:supervisor_id (name)
+      `)
       .order('created_at', { ascending: false });
     
     if (error) console.error(error);
-    else setUsers(data || []);
+    else {
+      const usersWithSupervisor = (data || []).map(user => ({
+        ...user,
+        supervisor_name: user.supervisor?.name || null
+      }));
+      setUsers(usersWithSupervisor);
+    }
   }
 
   async function handleSubmit(e) {
@@ -181,7 +190,9 @@ export default function Users() {
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>姓名</th>
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Email</th>
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>角色</th>
+                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>主管</th>
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>建立時間</th>
+                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -201,7 +212,26 @@ export default function Users() {
                     </span>
                   </td>
                   <td style={{ padding: '1rem' }}>
+                    {user.supervisor_name || '-'}
+                  </td>
+                  <td style={{ padding: '1rem' }}>
                     {new Date(user.created_at).toLocaleDateString('zh-TW')}
+                  </td>
+                  <td style={{ padding: '1rem', textAlign: 'center' }}>
+                    <button
+                      onClick={() => window.open(`/users/${user.id}`, '_blank')}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#3498db',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem'
+                      }}
+                    >
+                      查看詳情
+                    </button>
                   </td>
                 </tr>
               ))}

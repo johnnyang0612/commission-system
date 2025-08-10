@@ -96,6 +96,49 @@ BEGIN
     END IF;
 END $$;
 
+-- Add user fields if they don't exist
+DO $$ 
+BEGIN
+    -- Add phone column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'phone') THEN
+        ALTER TABLE users ADD COLUMN phone TEXT;
+    END IF;
+    
+    -- Add supervisor_id column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'supervisor_id') THEN
+        ALTER TABLE users ADD COLUMN supervisor_id UUID REFERENCES users(id);
+    END IF;
+    
+    -- Add bank account fields if they don't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'bank_name') THEN
+        ALTER TABLE users ADD COLUMN bank_name TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'bank_code') THEN
+        ALTER TABLE users ADD COLUMN bank_code TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'account_number') THEN
+        ALTER TABLE users ADD COLUMN account_number TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'account_name') THEN
+        ALTER TABLE users ADD COLUMN account_name TEXT;
+    END IF;
+END $$;
+
+-- Create commission_payments table if it doesn't exist
+CREATE TABLE IF NOT EXISTS commission_payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    commission_id UUID REFERENCES commissions(id),
+    amount NUMERIC NOT NULL,
+    payment_date DATE NOT NULL,
+    method TEXT DEFAULT 'transfer',
+    note TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create project_change_logs table if it doesn't exist
 CREATE TABLE IF NOT EXISTS project_change_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
