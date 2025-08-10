@@ -11,6 +11,7 @@ export default function Home() {
     amount: '',
     type: 'new',
     payment_template: '6/4',
+    custom_template: '',
     assigned_to: ''
   });
   const [users, setUsers] = useState([]);
@@ -54,6 +55,7 @@ export default function Home() {
       .from('projects')
       .insert([{
         ...formData,
+        payment_template: formData.payment_template === 'custom' ? formData.custom_template : formData.payment_template,
         amount: parseFloat(formData.amount)
       }]);
     
@@ -69,6 +71,7 @@ export default function Home() {
         amount: '',
         type: 'new',
         payment_template: '6/4',
+        custom_template: '',
         assigned_to: ''
       });
       fetchProjects();
@@ -202,7 +205,7 @@ export default function Home() {
                 </label>
                 <select
                   value={formData.payment_template}
-                  onChange={(e) => setFormData({...formData, payment_template: e.target.value})}
+                  onChange={(e) => setFormData({...formData, payment_template: e.target.value, custom_template: ''})}
                   style={{
                     width: '100%',
                     padding: '0.5rem',
@@ -214,7 +217,24 @@ export default function Home() {
                   <option value="6/2/2">6/2/2</option>
                   <option value="3/2/3/2">3/2/3/2</option>
                   <option value="10">一次付清</option>
+                  <option value="custom">自訂模板</option>
                 </select>
+                {formData.payment_template === 'custom' && (
+                  <input
+                    type="text"
+                    value={formData.custom_template}
+                    onChange={(e) => setFormData({...formData, custom_template: e.target.value})}
+                    placeholder="例如: 5/3/2 或 4/4/2"
+                    required={formData.payment_template === 'custom'}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      marginTop: '0.5rem'
+                    }}
+                  />
+                )}
               </div>
 
               <div>
