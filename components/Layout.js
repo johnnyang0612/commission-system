@@ -1,12 +1,23 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth, signOut } from '../utils/auth';
+import { useEffect, useState } from 'react';
+import { getCurrentUser, USER_ROLES } from '../utils/permissions';
 
 export default function Layout({ children }) {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const [currentUser, setCurrentUser] = useState(null);
   
   const isActive = (path) => router.pathname === path;
+  
+  useEffect(() => {
+    if (user) {
+      getCurrentUser(user).then(userData => {
+        setCurrentUser(userData);
+      });
+    }
+  }, [user]);
   
   const handleLogout = async () => {
     const confirmed = confirm('確定要登出嗎？');
@@ -90,6 +101,15 @@ export default function Layout({ children }) {
             }}>
               付款記錄
             </Link>
+            {currentUser?.role === USER_ROLES.ADMIN && (
+              <Link href="/admin/users" style={{
+                color: isActive('/admin/users') ? '#3498db' : 'white',
+                textDecoration: 'none',
+                fontWeight: isActive('/admin/users') ? 'bold' : 'normal'
+              }}>
+                用戶管理
+              </Link>
+            )}
           </div>
           
           {/* 用戶資訊和登出按鈕 */}

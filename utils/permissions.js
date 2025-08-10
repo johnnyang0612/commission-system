@@ -79,24 +79,62 @@ export function isFinancialRole(userRole) {
 }
 
 /**
- * Get current user role from Supabase auth
- * @returns {string}
+ * Get current user role from database
+ * @param {string} userId - User ID
+ * @returns {Promise<string>}
  */
-export function getCurrentUserRole() {
-  // 暫時返回 admin，在有真實用戶資料後會自動更新
-  return USER_ROLES.ADMIN;
+export async function getCurrentUserRole(userId) {
+  if (!userId) return USER_ROLES.SALES; // 預設為業務
+  
+  try {
+    const { supabase } = await import('./supabaseClient');
+    const { data, error } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    if (error || !data) {
+      console.error('無法獲取用戶角色:', error);
+      return USER_ROLES.SALES; // 預設為業務
+    }
+    
+    return data.role || USER_ROLES.SALES;
+  } catch (err) {
+    console.error('獲取角色錯誤:', err);
+    return USER_ROLES.SALES;
+  }
 }
 
 /**
- * Get current user data from Supabase auth
- * @returns {object}
+ * Get current user data from database
+ * @param {object} authUser - Auth user object
+ * @returns {Promise<object>}
  */
-export function getCurrentUser() {
-  // 暫時返回模擬用戶，在有真實用戶資料後會自動更新
-  return {
-    id: '00000000-0000-0000-0000-000000000000',
-    name: 'Current User',
-    email: 'user@example.com',
-    role: getCurrentUserRole()
-  };
+export async function getCurrentUser(authUser) {
+  if (!authUser) return null;
+  
+  try {
+    const { supabase } = await import('./supabaseClient');
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .single();
+    
+    if (error || !data) {
+      // 如果用戶不存在，返回基本資訊
+      return {
+        id: authUser.id,
+        email: authUser.email,
+        name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+        role: USER_ROLES.SALES // 預設業務
+      };
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('獲取用戶資料錯誤:', err);
+    return null;
+  }
 }
