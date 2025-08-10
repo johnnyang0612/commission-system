@@ -2,6 +2,7 @@ import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import Layout from '../../components/Layout';
+import { canViewFinancialData, canEditCosts, getCurrentUserRole } from '../../utils/permissions';
 
 export default function ProjectDetail() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function ProjectDetail() {
   const [showAddCost, setShowAddCost] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [editFormData, setEditFormData] = useState({});
+  const [userRole, setUserRole] = useState(null);
   const [installmentForm, setInstallmentForm] = useState({
     installment_number: '',
     due_date: '',
@@ -44,6 +46,7 @@ export default function ProjectDetail() {
       fetchCommissions();
       fetchCosts();
       fetchUsers();
+      setUserRole(getCurrentUserRole());
     }
   }, [id]);
 
@@ -760,7 +763,7 @@ export default function ProjectDetail() {
             </div>
             <p><strong>已收金額：</strong>NT$ {totalPaid.toLocaleString()}</p>
             <p><strong>待收金額：</strong>NT$ {(totalAmount - totalPaid).toLocaleString()}</p>
-            {(() => {
+            {canViewFinancialData(userRole) && (() => {
               const totalCosts = costs.reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
               const totalCommissionAmount = commissions.length > 0 ? commissions[0].amount : 0;
               const expectedProfit = project.amount - totalCosts - totalCommissionAmount;
@@ -1161,9 +1164,13 @@ export default function ProjectDetail() {
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>實收金額</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '110px' }}>實際付款日</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>狀態</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>應撥分潤</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>實撥分潤</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>撥款日</th>
+                {canViewFinancialData(userRole) && (
+                  <>
+                    <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>應撥分潤</th>
+                    <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>實撥分潤</th>
+                    <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>撥款日</th>
+                  </>
+                )}
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '120px' }}>操作</th>
               </tr>
             </thead>
@@ -1194,13 +1201,17 @@ export default function ProjectDetail() {
                       {installment.status === 'paid' ? '已付款' : '待付款'}
                     </span>
                   </td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#27ae60' }}>
-                    {commissionPerInstallment > 0 ? `NT$ ${Math.round(commissionPerInstallment).toLocaleString()}` : '-'}
-                  </td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: '#e74c3c' }}>
-                    {installment.actual_commission ? `NT$ ${installment.actual_commission.toLocaleString()}` : '-'}
-                  </td>
-                  <td style={{ padding: '0.75rem 0.5rem' }}>{installment.commission_payment_date || '-'}</td>
+                  {canViewFinancialData(userRole) && (
+                    <>
+                      <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#27ae60' }}>
+                        {commissionPerInstallment > 0 ? `NT$ ${Math.round(commissionPerInstallment).toLocaleString()}` : '-'}
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: '#e74c3c' }}>
+                        {installment.actual_commission ? `NT$ ${installment.actual_commission.toLocaleString()}` : '-'}
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>{installment.commission_payment_date || '-'}</td>
+                    </>
+                  )}
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
                     <div style={{ 
                       display: 'flex', 
@@ -1217,8 +1228,13 @@ export default function ProjectDetail() {
                             const actualAmount = prompt('請輸入實際收款金額:', installment.amount);
                             if (!actualAmount) return;
                             
-                            const actualCommission = prompt('請輸入實際撥款金額:', Math.round(installment.commission_amount || 0));
-                            const commissionDate = prompt('請輸入撥款日期 (YYYY-MM-DD):', paymentDate);
+                            let actualCommission = null;
+                            let commissionDate = null;
+                            
+                            if (canViewFinancialData(userRole)) {
+                              actualCommission = prompt('請輸入實際撥款金額:', Math.round(installment.commission_amount || 0));
+                              commissionDate = prompt('請輸入撥款日期 (YYYY-MM-DD):', paymentDate);
+                            }
                             
                             updateInstallmentStatus(installment.id, 'paid', paymentDate, actualAmount, actualCommission, commissionDate);
                           }}
@@ -1247,8 +1263,13 @@ export default function ProjectDetail() {
                             const actualAmount = prompt('請輸入實際收款金額:', installment.actual_amount || installment.amount);
                             if (!actualAmount) return;
                             
-                            const actualCommission = prompt('請輸入實際撥款金額:', installment.actual_commission || Math.round(installment.commission_amount || 0));
-                            const commissionDate = prompt('請輸入撥款日期 (YYYY-MM-DD):', installment.commission_payment_date || paymentDate);
+                            let actualCommission = null;
+                            let commissionDate = null;
+                            
+                            if (canViewFinancialData(userRole)) {
+                              actualCommission = prompt('請輸入實際撥款金額:', installment.actual_commission || Math.round(installment.commission_amount || 0));
+                              commissionDate = prompt('請輸入撥款日期 (YYYY-MM-DD):', installment.commission_payment_date || paymentDate);
+                            }
                             
                             updateInstallmentStatus(installment.id, 'paid', paymentDate, actualAmount, actualCommission, commissionDate);
                           }}
@@ -1294,8 +1315,8 @@ export default function ProjectDetail() {
           </table>
         </div>
         
-        {/* 分潤總覽 */}
-        {commissions.length > 0 && (() => {
+        {/* 分潤總覽 - 只有 Admin 和 Finance 可以看到 */}
+        {canViewFinancialData(userRole) && commissions.length > 0 && (() => {
           // 計算已撥款和待撥款金額
           const totalPaidCommission = installments
             .filter(i => i.actual_commission && i.actual_commission > 0)
@@ -1351,24 +1372,27 @@ export default function ProjectDetail() {
         )}
       </div>
 
-      {/* 成本管理區塊 */}
-      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', marginBottom: '2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h3 style={{ margin: 0 }}>專案成本管理</h3>
-          <button
-            onClick={() => setShowAddCost(!showAddCost)}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#e67e22',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            {showAddCost ? '取消' : '新增成本'}
-          </button>
-        </div>
+      {/* 成本管理區塊 - 只有 Admin 和 Finance 可以看到 */}
+      {canViewFinancialData(userRole) && (
+        <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', marginBottom: '2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h3 style={{ margin: 0 }}>專案成本管理</h3>
+            {canEditCosts(userRole) && (
+              <button
+                onClick={() => setShowAddCost(!showAddCost)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#e67e22',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                {showAddCost ? '取消' : '新增成本'}
+              </button>
+            )}
+          </div>
 
         {showAddCost && (
           <form onSubmit={handleAddCost} style={{
@@ -1599,7 +1623,8 @@ export default function ProjectDetail() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <h3 style={{ marginTop: 0, marginBottom: '1.5rem' }}>保固與維護資訊</h3>

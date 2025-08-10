@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import Layout from '../components/Layout';
+import { canViewFinancialData, getCurrentUser, getCurrentUserRole } from '../utils/permissions';
 
 export default function Commissions() {
   const [commissions, setCommissions] = useState([]);
   const [projects, setProjects] = useState([]);
   const [monthlyStats, setMonthlyStats] = useState({});
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
+    const user = getCurrentUser();
+    const role = getCurrentUserRole();
+    setCurrentUser(user);
+    setUserRole(role);
+    
     fetchCommissions();
     fetchProjects();
     calculateMonthlyStats();
@@ -15,7 +23,8 @@ export default function Commissions() {
 
   async function fetchCommissions() {
     if (!supabase) return;
-    const { data, error } = await supabase
+    
+    let query = supabase
       .from('commissions')
       .select(`
         *,
@@ -23,14 +32,31 @@ export default function Commissions() {
           client_name,
           project_code,
           amount,
-          type
+          type,
+          assigned_to,
+          manager_id
         ),
         user:user_id (
           name,
           email
         )
-      `)
-      .order('created_at', { ascending: false });
+      `);
+    
+    // Apply role-based filtering
+    const user = getCurrentUser();
+    const role = getCurrentUserRole();
+    
+    if (role === 'sales') {
+      // Sales can only see their own commissions
+      query = query.eq('user_id', user.id);
+    } else if (role === 'leader') {
+      // Leaders see their own + direct reports commissions
+      // This would need actual user hierarchy data
+      // query = query.or(`user_id.eq.${user.id},project.manager_id.eq.${user.id}`);
+    }
+    // Admin and Finance can see all commissions
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
     
     if (error) console.error(error);
     else setCommissions(data || []);
@@ -38,10 +64,21 @@ export default function Commissions() {
 
   async function fetchProjects() {
     if (!supabase) return;
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
+    
+    let query = supabase.from('projects').select('*');
+    
+    // Apply role-based filtering for project selection
+    const user = getCurrentUser();
+    const role = getCurrentUserRole();
+    
+    if (role === 'sales') {
+      query = query.eq('assigned_to', user.id);
+    } else if (role === 'leader') {
+      // Leaders see their own + direct reports
+      // query = query.or(`assigned_to.eq.${user.id},manager_id.eq.${user.id}`);
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
     
     if (error) console.error(error);
     else setProjects(data || []);
@@ -113,6 +150,42 @@ export default function Commissions() {
       alert(`分潤計算成功！\n分潤比例: ${percentage}%\n分潤金額: NT$ ${commissionAmount.toLocaleString()}`);
       fetchCommissions();
       calculateMonthlyStats();
+      await syncCommissionWithInstallments(projectId);
+    }
+  }
+  
+  async function syncCommissionWithInstallments(projectId) {
+    if (!supabase) return;
+    
+    // Check if any installments for this project have been paid
+    const { data: paidInstallments, error: installmentError } = await supabase
+      .from('project_installments')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('status', 'paid');
+    
+    if (installmentError || !paidInstallments || paidInstallments.length === 0) return;
+    
+    // Get the project to check payment ratio
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+    
+    // Calculate total paid amount from installments
+    const totalPaid = paidInstallments.reduce((sum, installment) => sum + installment.amount, 0);
+    const paymentRatio = totalPaid / project.amount;
+    
+    // If 60% or more has been paid, auto-approve commission
+    if (paymentRatio >= 0.6) {
+      const { error: updateError } = await supabase
+        .from('commissions')
+        .update({ status: 'approved' })
+        .eq('project_id', projectId)
+        .eq('status', 'pending');
+      
+      if (!updateError) {
+        console.log('Commission auto-approved based on installment payments');
+        fetchCommissions(); // Refresh the commission list
+      }
     }
   }
 

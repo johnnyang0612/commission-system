@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import Layout from '../components/Layout';
+import { canViewFinancialData, getCurrentUser, getCurrentUserRole } from '../utils/permissions';
 
 export default function Payments() {
   const [payments, setPayments] = useState([]);
   const [projects, setProjects] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [formData, setFormData] = useState({
     project_id: '',
     payment_date: new Date().toISOString().split('T')[0],
@@ -14,13 +17,19 @@ export default function Payments() {
   });
 
   useEffect(() => {
+    const user = getCurrentUser();
+    const role = getCurrentUserRole();
+    setCurrentUser(user);
+    setUserRole(role);
+    
     fetchPayments();
     fetchProjects();
   }, []);
 
   async function fetchPayments() {
     if (!supabase) return;
-    const { data, error } = await supabase
+    
+    let query = supabase
       .from('payments')
       .select(`
         *,
@@ -28,10 +37,27 @@ export default function Payments() {
           client_name,
           project_code,
           amount,
-          payment_template
+          payment_template,
+          assigned_to,
+          manager_id
         )
-      `)
-      .order('payment_date', { ascending: false });
+      `);
+    
+    // Apply role-based filtering
+    const user = getCurrentUser();
+    const role = getCurrentUserRole();
+    
+    if (role === 'sales') {
+      // Sales can only see their own projects
+      query = query.eq('project.assigned_to', user.id);
+    } else if (role === 'leader') {
+      // Leaders see their own + direct reports
+      // This would need actual user hierarchy data - for now showing all
+      // In real implementation: query = query.or(`project.assigned_to.eq.${user.id},project.manager_id.eq.${user.id}`);
+    }
+    // Admin and Finance can see all payments
+    
+    const { data, error } = await query.order('payment_date', { ascending: false });
     
     if (error) console.error(error);
     else setPayments(data || []);
@@ -39,10 +65,21 @@ export default function Payments() {
 
   async function fetchProjects() {
     if (!supabase) return;
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
+    
+    let query = supabase.from('projects').select('*');
+    
+    // Apply role-based filtering for project selection
+    const user = getCurrentUser();
+    const role = getCurrentUserRole();
+    
+    if (role === 'sales') {
+      query = query.eq('assigned_to', user.id);
+    } else if (role === 'leader') {
+      // Leaders see their own + direct reports
+      // query = query.or(`assigned_to.eq.${user.id},manager_id.eq.${user.id}`);
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
     
     if (error) console.error(error);
     else setProjects(data || []);
@@ -74,6 +111,7 @@ export default function Payments() {
       fetchPayments();
       
       await checkAndTriggerCommissionPayout(formData.project_id);
+      await syncWithProjectInstallments(formData.project_id, parseFloat(formData.amount));
     }
   }
 
@@ -107,6 +145,50 @@ export default function Payments() {
           alert('已達到撥款條件，相關分潤已核准！');
         }
       }
+    }
+  }
+  
+  async function syncWithProjectInstallments(projectId, paymentAmount) {
+    if (!supabase) return;
+    
+    // Get project installments that haven't been marked as paid
+    const { data: installments, error: installmentError } = await supabase
+      .from('project_installments')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('status', 'unpaid')
+      .order('installment_number', { ascending: true });
+    
+    if (installmentError || !installments || installments.length === 0) return;
+    
+    let remainingAmount = paymentAmount;
+    const installmentUpdates = [];
+    
+    // Mark installments as paid based on the payment amount
+    for (const installment of installments) {
+      if (remainingAmount <= 0) break;
+      
+      if (remainingAmount >= installment.amount) {
+        // Full payment for this installment
+        installmentUpdates.push({
+          id: installment.id,
+          status: 'paid',
+          paid_date: new Date().toISOString()
+        });
+        remainingAmount -= installment.amount;
+      } else {
+        // Partial payment - we'll mark it as partial for now
+        // In a more complex system, you might want to split installments
+        break;
+      }
+    }
+    
+    // Update the installments
+    for (const update of installmentUpdates) {
+      await supabase
+        .from('project_installments')
+        .update({ status: update.status, paid_date: update.paid_date })
+        .eq('id', update.id);
     }
   }
 
