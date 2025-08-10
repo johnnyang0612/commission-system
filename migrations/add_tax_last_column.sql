@@ -81,10 +81,30 @@ CREATE TABLE IF NOT EXISTS project_installments (
     installment_number INTEGER NOT NULL,
     due_date DATE NOT NULL,
     amount NUMERIC NOT NULL,
+    actual_amount NUMERIC,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'overdue')),
     payment_date DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add actual_amount column if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project_installments' AND column_name = 'actual_amount') THEN
+        ALTER TABLE project_installments ADD COLUMN actual_amount NUMERIC;
+    END IF;
+END $$;
+
+-- Create project_change_logs table if it doesn't exist
+CREATE TABLE IF NOT EXISTS project_change_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    field_name TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    changed_by TEXT NOT NULL,
+    change_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create index on project_installments if it doesn't exist

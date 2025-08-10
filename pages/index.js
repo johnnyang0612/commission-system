@@ -63,19 +63,24 @@ export default function Home() {
     const signDateFormatted = formData.sign_date.replace(/-/g, '');
     const projectCode = `${formData.tax_id}-${signDateFormatted}`;
     
-    const { error } = await supabase
+    const { data: projectData, error: projectError } = await supabase
       .from('projects')
       .insert([{
         ...formData,
         project_code: projectCode,
         amount: parseFloat(formData.amount)
-      }]);
+      }])
+      .select()
+      .single();
     
-    if (error) {
-      console.error(error);
+    if (projectError) {
+      console.error(projectError);
       alert('新增失敗');
     } else {
-      alert('新增成功');
+      // Generate installments based on payment template
+      await generateInstallments(projectData.id, formData.payment_template, parseFloat(formData.amount), formData.tax_last, formData.first_payment_date);
+      
+      alert('新增成功並自動生成付款期數');
       setShowAddForm(false);
       setFormData({
         client_name: '',
@@ -95,6 +100,53 @@ export default function Home() {
       });
       setIsCustomTemplate(false);
       fetchProjects();
+    }
+  }
+
+  async function generateInstallments(projectId, template, baseAmount, taxLast, firstPaymentDate) {
+    if (!supabase) return;
+    
+    // Parse payment template (e.g., "3/3/2/2" or "6/4")
+    const ratios = template.split('/').map(r => parseInt(r.trim()));
+    const totalRatio = ratios.reduce((sum, ratio) => sum + ratio, 0);
+    
+    const taxAmount = baseAmount * 0.05;
+    const totalAmount = baseAmount + taxAmount;
+    
+    const installments = [];
+    let currentDate = new Date(firstPaymentDate);
+    
+    ratios.forEach((ratio, index) => {
+      const isLastInstallment = index === ratios.length - 1;
+      let installmentAmount;
+      
+      if (taxLast) {
+        // 稅最後付：前面期數不含稅，最後一期加上稅金
+        const baseInstallmentAmount = (baseAmount * ratio) / totalRatio;
+        installmentAmount = isLastInstallment ? baseInstallmentAmount + taxAmount : baseInstallmentAmount;
+      } else {
+        // 分期含稅：每期按比例分配含稅總額
+        installmentAmount = (totalAmount * ratio) / totalRatio;
+      }
+      
+      installments.push({
+        project_id: projectId,
+        installment_number: index + 1,
+        due_date: currentDate.toISOString().split('T')[0],
+        amount: Math.round(installmentAmount),
+        status: 'pending'
+      });
+      
+      // 下一期付款日期（每月遞增）
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    });
+    
+    const { error } = await supabase
+      .from('project_installments')
+      .insert(installments);
+    
+    if (error) {
+      console.error('生成付款期數失敗:', error);
     }
   }
 
