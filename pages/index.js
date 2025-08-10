@@ -699,73 +699,76 @@ export default function Home() {
         )}
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '1200px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>專案編號</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>客戶名稱</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>類型</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>未稅金額</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>含稅金額</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>付款模板</th>
-                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>稅金</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>負責業務</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>建立時間</th>
-                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>操作</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '140px' }}>專案編號</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '120px' }}>客戶名稱</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>類型</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>未稅金額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>含稅金額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>付款模板</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '90px' }}>稅金</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>負責業務</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>建立時間</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '150px' }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {projects.map(project => (
                 <tr key={project.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                  <td style={{ padding: '1rem' }}>{project.project_code}</td>
-                  <td style={{ padding: '1rem' }}>{project.client_name}</td>
-                  <td style={{ padding: '1rem' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', wordBreak: 'break-all' }}>{project.project_code}</td>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>{project.client_name}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
                     <span style={{
-                      padding: '0.25rem 0.75rem',
+                      padding: '0.25rem 0.5rem',
                       borderRadius: '4px',
                       backgroundColor: getTypeColor(project.type),
                       color: 'white',
-                      fontSize: '0.875rem'
+                      fontSize: '0.75rem',
+                      whiteSpace: 'nowrap'
                     }}>
                       {getTypeLabel(project.type)}
                     </span>
                   </td>
-                  <td style={{ padding: '1rem', textAlign: 'right' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     NT$ {project.amount?.toLocaleString()}
                   </td>
-                  <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 'bold' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                     NT$ {(project.amount * 1.05)?.toLocaleString()}
                   </td>
-                  <td style={{ padding: '1rem' }}>{project.payment_template}</td>
-                  <td style={{ padding: '1rem', textAlign: 'center' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>{project.payment_template}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
                     <span style={{
-                      padding: '0.25rem 0.5rem',
+                      padding: '0.25rem 0.4rem',
                       borderRadius: '4px',
                       backgroundColor: project.tax_last ? '#e74c3c' : '#3498db',
                       color: 'white',
-                      fontSize: '0.75rem'
+                      fontSize: '0.7rem',
+                      whiteSpace: 'nowrap'
                     }}>
                       {project.tax_last ? '稅最後付' : '分期含稅'}
                     </span>
                   </td>
-                  <td style={{ padding: '1rem' }}>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>
                     {users.find(user => user.id === project.assigned_to)?.name || '-'}
                   </td>
-                  <td style={{ padding: '1rem' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', whiteSpace: 'nowrap' }}>
                     {new Date(project.created_at).toLocaleDateString('zh-TW')}
                   </td>
-                  <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', justifyContent: 'center' }}>
                       <button
                         onClick={() => window.open(`/projects/${project.id}`, '_blank')}
                         style={{
-                          padding: '0.5rem 1rem',
+                          padding: '0.4rem 0.8rem',
                           backgroundColor: '#3498db',
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
                           cursor: 'pointer',
-                          fontSize: '0.875rem'
+                          fontSize: '0.75rem',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         查看詳情
@@ -773,13 +776,14 @@ export default function Home() {
                       <button
                         onClick={() => deleteProject(project.id, project.project_code)}
                         style={{
-                          padding: '0.5rem 1rem',
+                          padding: '0.4rem 0.8rem',
                           backgroundColor: '#e74c3c',
                           color: 'white',
                           border: 'none',
                           borderRadius: '4px',
                           cursor: 'pointer',
-                          fontSize: '0.875rem'
+                          fontSize: '0.75rem',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         刪除
