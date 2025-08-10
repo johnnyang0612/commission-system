@@ -9,6 +9,8 @@ export default function ProjectDetail() {
   const [project, setProject] = useState(null);
   const [installments, setInstallments] = useState([]);
   const [commissions, setCommissions] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [assignedUser, setAssignedUser] = useState(null);
   const [showAddInstallment, setShowAddInstallment] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [editFormData, setEditFormData] = useState({});
@@ -31,17 +33,22 @@ export default function ProjectDetail() {
       fetchProject();
       fetchInstallments();
       fetchCommissions();
+      fetchUsers();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (project && users.length > 0) {
+      const assigned = users.find(user => user.id === project.assigned_to);
+      setAssignedUser(assigned || null);
+    }
+  }, [project, users]);
 
   async function fetchProject() {
     if (!supabase) return;
     const { data, error } = await supabase
       .from('projects')
-      .select(`
-        *,
-        users:assigned_to (name, email)
-      `)
+      .select('*')
       .eq('id', id)
       .single();
     
@@ -56,6 +63,22 @@ export default function ProjectDetail() {
         maintenance_billing_date: data.maintenance_billing_date || '',
         maintenance_fee: data.maintenance_fee || ''
       });
+    }
+  }
+
+  async function fetchUsers() {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .in('role', ['sales', 'leader'])
+      .order('name');
+    
+    if (error) {
+      console.error('Error fetching users:', error);
+    } else {
+      console.log('Fetched users:', data);
+      setUsers(data || []);
     }
   }
 
@@ -110,13 +133,18 @@ export default function ProjectDetail() {
     }
   }
 
-  async function updateInstallmentStatus(installmentId, status, paymentDate, actualAmount) {
+  async function updateInstallmentStatus(installmentId, status, paymentDate, actualAmount, actualCommission, commissionDate) {
     if (!supabase) return;
     
     const updateData = { status };
     if (status === 'paid') {
       if (paymentDate) updateData.payment_date = paymentDate;
       if (actualAmount) updateData.actual_amount = parseFloat(actualAmount);
+      if (actualCommission) {
+        updateData.actual_commission = parseFloat(actualCommission);
+        updateData.commission_status = 'paid';
+      }
+      if (commissionDate) updateData.commission_payment_date = commissionDate;
     }
     
     const { error } = await supabase
@@ -143,44 +171,185 @@ export default function ProjectDetail() {
     
     // 檢查該專案是否已有分潤記錄
     const existingCommission = commissions.find(c => c.project_id === project.id);
-    if (existingCommission) return; // 已有分潤，不重複計算
-    
-    // 計算分潤比例
-    let percentage = 0;
-    if (project.type === 'new') {
-      // 新簽案件階梯式計算（簡化版）
-      const projectAmount = project.amount;
-      if (projectAmount <= 100000) percentage = 35;
-      else if (projectAmount <= 300000) percentage = 30;
-      else if (projectAmount <= 600000) percentage = 25;
-      else if (projectAmount <= 1000000) percentage = 20;
-      else percentage = 10;
-    } else if (project.type === 'renewal') {
-      percentage = 15;
+    if (existingCommission) {
+      // 更新期數的分潤金額
+      await updateInstallmentCommission(installmentId, existingCommission);
+      return;
     }
     
-    if (percentage > 0) {
-      const commissionAmount = (project.amount * percentage) / 100;
+    // 分潤計算：固定分潤 vs 階梯式分潤
+    let totalCommissionAmount = 0;
+    let effectivePercentage = 0;
+    
+    if (project.use_fixed_commission && project.fixed_commission_percentage) {
+      // 使用固定分潤比例
+      effectivePercentage = parseFloat(project.fixed_commission_percentage);
+      totalCommissionAmount = project.amount * (effectivePercentage / 100);
+    } else if (project.type === 'new') {
+      // 階梯式分潤計算
+      const projectAmount = project.amount;
+      let remainingAmount = projectAmount;
       
+      // 第一階：10萬以下 35%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 100000);
+        totalCommissionAmount += tierAmount * 0.35;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第二階：10-30萬 30%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 200000);
+        totalCommissionAmount += tierAmount * 0.30;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第三階：30-60萬 25%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 300000);
+        totalCommissionAmount += tierAmount * 0.25;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第四階：60-100萬 20%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 400000);
+        totalCommissionAmount += tierAmount * 0.20;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第五階：100萬以上 10%
+      if (remainingAmount > 0) {
+        totalCommissionAmount += remainingAmount * 0.10;
+      }
+      
+      effectivePercentage = (totalCommissionAmount / projectAmount) * 100;
+    } else if (project.type === 'renewal') {
+      totalCommissionAmount = project.amount * 0.15;
+      effectivePercentage = 15;
+    }
+    
+    if (effectivePercentage > 0) {
       const { error } = await supabase
         .from('commissions')
         .insert([{
           project_id: project.id,
           user_id: project.assigned_to,
-          percentage: percentage,
-          amount: commissionAmount,
+          percentage: effectivePercentage,
+          amount: totalCommissionAmount,
           status: 'pending'
         }]);
       
       if (!error) {
         fetchCommissions();
+        // 更新期數的分潤金額
+        await updateInstallmentCommission(installmentId, { amount: totalCommissionAmount, percentage: effectivePercentage });
       }
+    }
+  }
+
+  async function updateInstallmentCommission(installmentId, commission) {
+    if (!supabase) return;
+    
+    const commissionPerInstallment = commission.amount / installments.length;
+    
+    const { error } = await supabase
+      .from('project_installments')
+      .update({
+        commission_amount: Math.round(commissionPerInstallment),
+        commission_status: 'pending'
+      })
+      .eq('id', installmentId);
+    
+    if (!error) {
+      fetchInstallments();
+    }
+  }
+
+  async function updateCommissionStatus(installmentId, status) {
+    if (!supabase) return;
+    
+    const actualCommission = prompt('請輸入實撥分潤金額:', '');
+    const paymentDate = prompt('請輸入撥款日期 (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    
+    if (actualCommission && paymentDate) {
+      const { error } = await supabase
+        .from('project_installments')
+        .update({
+          commission_status: status,
+          actual_commission: parseFloat(actualCommission),
+          commission_payment_date: paymentDate
+        })
+        .eq('id', installmentId);
+      
+      if (error) {
+        console.error(error);
+        alert('撥款記錄更新失敗');
+      } else {
+        alert('撥款記錄更新成功');
+        fetchInstallments();
+      }
+    }
+  }
+
+  async function deleteInstallment(installmentId, installmentNumber) {
+    if (!supabase) return;
+    
+    const confirmed = confirm(`確定要刪除第 ${installmentNumber} 期嗎？`);
+    if (!confirmed) return;
+    
+    const { error } = await supabase
+      .from('project_installments')
+      .delete()
+      .eq('id', installmentId);
+    
+    if (error) {
+      console.error(error);
+      alert('刪除失敗');
+    } else {
+      alert('刪除成功');
+      fetchInstallments();
+    }
+  }
+
+  async function deleteProject() {
+    if (!supabase || !project) {
+      console.log('Missing supabase or project:', { supabase: !!supabase, project: !!project });
+      return;
+    }
+    
+    console.log('Attempting to delete project:', project.project_code, 'ID:', project.id);
+    
+    const confirmed = confirm(`確定要刪除專案「${project.project_code}」嗎？此操作將同時刪除所有相關的付款期數和分潤記錄，且無法復原。`);
+    if (!confirmed) return;
+    
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', project.id);
+    
+    if (error) {
+      console.error('Delete error:', error);
+      alert(`刪除失敗: ${error.message}`);
+    } else {
+      console.log('Project deleted successfully');
+      alert('專案刪除成功');
+      router.push('/');
     }
   }
 
   async function updateProject(e) {
     e.preventDefault();
     if (!supabase) return;
+    
+    console.log('Updating project with data:', editFormData);
+    console.log('Users available:', users);
+    
+    // 驗證必要欄位
+    if (!editFormData.assigned_to) {
+      alert('請選擇負責業務');
+      return;
+    }
     
     // 記錄修改歷史
     const changes = [];
@@ -194,6 +363,8 @@ export default function ProjectDetail() {
       }
     });
     
+    console.log('Changes detected:', changes);
+    
     if (changes.length === 0) {
       alert('沒有變更');
       return;
@@ -205,20 +376,28 @@ export default function ProjectDetail() {
       .eq('id', id);
     
     if (error) {
-      console.error(error);
-      alert('更新失敗');
+      console.error('Update error:', error);
+      alert(`更新失敗: ${error.message}`);
     } else {
+      console.log('Project updated successfully');
+      
       // 記錄修改歷史
-      await supabase
-        .from('project_change_logs')
-        .insert(changes.map(change => ({
-          project_id: id,
-          field_name: change.field,
-          old_value: String(change.old_value || ''),
-          new_value: String(change.new_value || ''),
-          changed_by: 'current_user', // 實際應該是登入用戶
-          change_date: new Date().toISOString()
-        })));
+      if (changes.length > 0) {
+        const { error: logError } = await supabase
+          .from('project_change_logs')
+          .insert(changes.map(change => ({
+            project_id: id,
+            field_name: change.field,
+            old_value: String(change.old_value || ''),
+            new_value: String(change.new_value || ''),
+            changed_by: 'current_user', // 實際應該是登入用戶
+            change_date: new Date().toISOString()
+          })));
+        
+        if (logError) {
+          console.error('Log error (non-critical):', logError);
+        }
+      }
       
       alert('更新成功');
       setShowEditForm(false);
@@ -264,7 +443,7 @@ export default function ProjectDetail() {
 
   return (
     <Layout>
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button
           onClick={() => router.push('/')}
           style={{
@@ -277,6 +456,19 @@ export default function ProjectDetail() {
           }}
         >
           ← 返回專案列表
+        </button>
+        <button
+          onClick={deleteProject}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: '#e74c3c',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          刪除專案
         </button>
       </div>
 
@@ -296,12 +488,18 @@ export default function ProjectDetail() {
           
           <div>
             <h4 style={{ color: '#6c757d', marginBottom: '1rem' }}>專案資訊</h4>
-            <p><strong>負責業務：</strong>{project.users?.name}</p>
+            <p><strong>負責業務：</strong>{assignedUser?.name || '-'}</p>
             <p><strong>簽約日期：</strong>{project.sign_date}</p>
             <p><strong>預計完成：</strong>{project.expected_completion_date}</p>
             <p><strong>未稅金額：</strong>NT$ {project.amount?.toLocaleString()}</p>
             <p><strong>含稅金額：</strong>NT$ {totalAmount?.toLocaleString()}</p>
             <p><strong>付款模板：</strong>{project.payment_template}</p>
+            <p><strong>分潤方式：</strong>
+              {project.use_fixed_commission ? 
+                `固定 ${project.fixed_commission_percentage}%` : 
+                '階梯式分潤'
+              }
+            </p>
           </div>
           
           <div>
@@ -510,6 +708,61 @@ export default function ProjectDetail() {
                   style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
                 />
               </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>負責業務 *</label>
+                <select
+                  value={editFormData.assigned_to || ''}
+                  onChange={(e) => setEditFormData({...editFormData, assigned_to: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="">選擇業務人員</option>
+                  {users.length > 0 ? users.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} ({user.email})
+                    </option>
+                  )) : (
+                    <option value="" disabled>載入中...</option>
+                  )}
+                </select>
+              </div>
+            </div>
+
+            <h5 style={{ marginBottom: '1rem', color: '#2c3e50' }}>分潤設定</h5>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editFormData.use_fixed_commission || false}
+                    onChange={(e) => setEditFormData({...editFormData, use_fixed_commission: e.target.checked})}
+                    style={{ marginRight: '0.5rem' }}
+                  />
+                  <span style={{ fontWeight: 'bold' }}>使用固定分潤比例</span>
+                </label>
+                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#6c757d' }}>
+                  {editFormData.use_fixed_commission ? '將使用固定比例計算分潤' : '將使用階梯式分潤計算'}
+                </div>
+              </div>
+              
+              {editFormData.use_fixed_commission && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    固定分潤比例 (%) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={editFormData.fixed_commission_percentage || ''}
+                    onChange={(e) => setEditFormData({...editFormData, fixed_commission_percentage: e.target.value})}
+                    required={editFormData.use_fixed_commission}
+                    placeholder="例如: 25"
+                    style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                  />
+                </div>
+              )}
             </div>
 
             <h5 style={{ marginBottom: '1rem', color: '#2c3e50' }}>付款設定</h5>
@@ -626,69 +879,122 @@ export default function ProjectDetail() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.9rem' }}>期數</th>
-              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.9rem' }}>預定日期</th>
-              <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.9rem' }}>應收金額</th>
-              <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.9rem' }}>實收金額</th>
-              <th style={{ padding: '0.75rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontSize: '0.9rem' }}>狀態</th>
-              <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.9rem' }}>實際付款日</th>
-              <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.9rem' }}>應撥分潤</th>
-              <th style={{ padding: '0.75rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontSize: '0.9rem' }}>操作</th>
+              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>期數</th>
+              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>預定日期</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>應收金額</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>實收金額</th>
+              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>實際付款日</th>
+              <th style={{ padding: '0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>狀態</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>應撥分潤</th>
+              <th style={{ padding: '0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>實撥分潤</th>
+              <th style={{ padding: '0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>撥款日</th>
+              <th style={{ padding: '0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', fontSize: '0.8rem' }}>操作</th>
             </tr>
           </thead>
           <tbody>
             {installments.map(installment => {
-              // 計算該期應撥分潤金額（簡化計算）
+              // 計算該期應撥分潤金額
               const commission = commissions.length > 0 ? commissions[0] : null;
-              const commissionPerInstallment = commission ? (commission.amount / installments.length) : 0;
+              const commissionPerInstallment = installment.commission_amount || (commission ? (commission.amount / installments.length) : 0);
               
               return (
                 <tr key={installment.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                  <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>第 {installment.installment_number} 期</td>
-                  <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{installment.due_date}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem' }}>NT$ {installment.amount?.toLocaleString()}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', fontWeight: installment.actual_amount ? 'bold' : 'normal' }}>
+                  <td style={{ padding: '0.5rem', fontSize: '0.8rem' }}>第 {installment.installment_number} 期</td>
+                  <td style={{ padding: '0.5rem', fontSize: '0.8rem' }}>{installment.due_date}</td>
+                  <td style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.8rem' }}>NT$ {installment.amount?.toLocaleString()}</td>
+                  <td style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: installment.actual_amount ? 'bold' : 'normal' }}>
                     {installment.actual_amount ? `NT$ ${installment.actual_amount.toLocaleString()}` : '-'}
                   </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                  <td style={{ padding: '0.5rem', fontSize: '0.8rem' }}>{installment.payment_date || '-'}</td>
+                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>
                     <span style={{
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '4px',
+                      padding: '0.2rem 0.4rem',
+                      borderRadius: '3px',
                       backgroundColor: installment.status === 'paid' ? '#27ae60' : '#f39c12',
                       color: 'white',
-                      fontSize: '0.75rem'
+                      fontSize: '0.7rem'
                     }}>
                       {installment.status === 'paid' ? '已付款' : '待付款'}
                     </span>
                   </td>
-                  <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{installment.payment_date || '-'}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', color: '#27ae60' }}>
-                    {installment.status === 'paid' && commissionPerInstallment > 0 ? 
-                      `NT$ ${Math.round(commissionPerInstallment).toLocaleString()}` : '-'}
+                  <td style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.8rem', color: '#27ae60' }}>
+                    {commissionPerInstallment > 0 ? `NT$ ${Math.round(commissionPerInstallment).toLocaleString()}` : '-'}
                   </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                    {installment.status !== 'paid' && (
+                  <td style={{ padding: '0.5rem', textAlign: 'right', fontSize: '0.8rem', fontWeight: 'bold', color: '#e74c3c' }}>
+                    {installment.actual_commission ? `NT$ ${installment.actual_commission.toLocaleString()}` : '-'}
+                  </td>
+                  <td style={{ padding: '0.5rem', fontSize: '0.8rem' }}>{installment.commission_payment_date || '-'}</td>
+                  <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      {installment.status !== 'paid' && (
+                        <button
+                          onClick={() => {
+                            const paymentDate = prompt('請輸入付款日期 (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+                            if (!paymentDate) return;
+                            
+                            const actualAmount = prompt('請輸入實際收款金額:', installment.amount);
+                            if (!actualAmount) return;
+                            
+                            const actualCommission = prompt('請輸入實際撥款金額:', Math.round(installment.commission_amount || 0));
+                            const commissionDate = prompt('請輸入撥款日期 (YYYY-MM-DD):', paymentDate);
+                            
+                            updateInstallmentStatus(installment.id, 'paid', paymentDate, actualAmount, actualCommission, commissionDate);
+                          }}
+                          style={{
+                            padding: '0.2rem 0.4rem',
+                            backgroundColor: '#27ae60',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            fontSize: '0.7rem'
+                          }}
+                        >
+                          標記已付
+                        </button>
+                      )}
+                      {installment.status === 'paid' && (
+                        <button
+                          onClick={() => {
+                            const paymentDate = prompt('請輸入付款日期 (YYYY-MM-DD):', installment.payment_date || new Date().toISOString().split('T')[0]);
+                            if (!paymentDate) return;
+                            
+                            const actualAmount = prompt('請輸入實際收款金額:', installment.actual_amount || installment.amount);
+                            if (!actualAmount) return;
+                            
+                            const actualCommission = prompt('請輸入實際撥款金額:', installment.actual_commission || Math.round(installment.commission_amount || 0));
+                            const commissionDate = prompt('請輸入撥款日期 (YYYY-MM-DD):', installment.commission_payment_date || paymentDate);
+                            
+                            updateInstallmentStatus(installment.id, 'paid', paymentDate, actualAmount, actualCommission, commissionDate);
+                          }}
+                          style={{
+                            padding: '0.2rem 0.4rem',
+                            backgroundColor: '#f39c12',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            fontSize: '0.7rem'
+                          }}
+                        >
+                          編輯
+                        </button>
+                      )}
                       <button
-                        onClick={() => {
-                          const paymentDate = prompt('請輸入付款日期 (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-                          const actualAmount = prompt('請輸入實際收款金額:', installment.amount);
-                          if (paymentDate && actualAmount) {
-                            updateInstallmentStatus(installment.id, 'paid', paymentDate, actualAmount);
-                          }
-                        }}
+                        onClick={() => deleteInstallment(installment.id, installment.installment_number)}
                         style={{
-                          padding: '0.25rem 0.5rem',
-                          backgroundColor: '#27ae60',
+                          padding: '0.2rem 0.4rem',
+                          backgroundColor: '#95a5a6',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '3px',
                           cursor: 'pointer',
-                          fontSize: '0.75rem'
+                          fontSize: '0.7rem'
                         }}
                       >
-                        標記已付
+                        刪除
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               );

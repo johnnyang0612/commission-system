@@ -19,7 +19,9 @@ export default function Home() {
     assigned_to: '',
     sign_date: new Date().toISOString().split('T')[0],
     first_payment_date: '',
-    expected_completion_date: ''
+    expected_completion_date: '',
+    use_fixed_commission: false,
+    fixed_commission_percentage: ''
   });
   const [isCustomTemplate, setIsCustomTemplate] = useState(false);
   const [users, setUsers] = useState([]);
@@ -33,10 +35,7 @@ export default function Home() {
     if (!supabase) return;
     const { data, error } = await supabase
       .from('projects')
-      .select(`
-        *,
-        users:assigned_to (name, email)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
     
     if (error) console.error(error);
@@ -78,7 +77,7 @@ export default function Home() {
       alert('新增失敗');
     } else {
       // Generate installments based on payment template
-      await generateInstallments(projectData.id, formData.payment_template, parseFloat(formData.amount), formData.tax_last, formData.first_payment_date);
+      await generateInstallments(projectData.id, formData.payment_template, parseFloat(formData.amount), formData.tax_last, formData.first_payment_date, formData.type, formData.assigned_to, formData.use_fixed_commission, formData.fixed_commission_percentage);
       
       alert('新增成功並自動生成付款期數');
       setShowAddForm(false);
@@ -96,14 +95,16 @@ export default function Home() {
         assigned_to: '',
         sign_date: new Date().toISOString().split('T')[0],
         first_payment_date: '',
-        expected_completion_date: ''
+        expected_completion_date: '',
+        use_fixed_commission: false,
+        fixed_commission_percentage: ''
       });
       setIsCustomTemplate(false);
       fetchProjects();
     }
   }
 
-  async function generateInstallments(projectId, template, baseAmount, taxLast, firstPaymentDate) {
+  async function generateInstallments(projectId, template, baseAmount, taxLast, firstPaymentDate, projectType, assignedTo, useFixedCommission, fixedCommissionPercentage) {
     if (!supabase) return;
     
     // Parse payment template (e.g., "3/3/2/2" or "6/4")
@@ -112,6 +113,58 @@ export default function Home() {
     
     const taxAmount = baseAmount * 0.05;
     const totalAmount = baseAmount + taxAmount;
+    
+    // 分潤計算：固定分潤 vs 階梯式分潤
+    let totalCommissionAmount = 0;
+    let effectivePercentage = 0;
+    
+    if (useFixedCommission && fixedCommissionPercentage) {
+      // 使用固定分潤比例
+      effectivePercentage = parseFloat(fixedCommissionPercentage);
+      totalCommissionAmount = baseAmount * (effectivePercentage / 100);
+    } else if (projectType === 'new') {
+      // 階梯式分潤計算
+      let remainingAmount = baseAmount;
+      
+      // 第一階：10萬以下 35%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 100000);
+        totalCommissionAmount += tierAmount * 0.35;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第二階：10-30萬 30%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 200000);
+        totalCommissionAmount += tierAmount * 0.30;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第三階：30-60萬 25%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 300000);
+        totalCommissionAmount += tierAmount * 0.25;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第四階：60-100萬 20%
+      if (remainingAmount > 0) {
+        const tierAmount = Math.min(remainingAmount, 400000);
+        totalCommissionAmount += tierAmount * 0.20;
+        remainingAmount -= tierAmount;
+      }
+      
+      // 第五階：100萬以上 10%
+      if (remainingAmount > 0) {
+        totalCommissionAmount += remainingAmount * 0.10;
+      }
+      
+      effectivePercentage = (totalCommissionAmount / baseAmount) * 100;
+    } else if (projectType === 'renewal') {
+      totalCommissionAmount = baseAmount * 0.15;
+      effectivePercentage = 15;
+    }
+    const commissionPerInstallment = totalCommissionAmount / ratios.length;
     
     const installments = [];
     let currentDate = new Date(firstPaymentDate);
@@ -134,12 +187,27 @@ export default function Home() {
         installment_number: index + 1,
         due_date: currentDate.toISOString().split('T')[0],
         amount: Math.round(installmentAmount),
+        commission_amount: Math.round(commissionPerInstallment),
+        commission_status: 'pending',
         status: 'pending'
       });
       
       // 下一期付款日期（每月遞增）
       currentDate.setMonth(currentDate.getMonth() + 1);
     });
+    
+    // 建立分潤記錄
+    if (effectivePercentage > 0) {
+      await supabase
+        .from('commissions')
+        .insert([{
+          project_id: projectId,
+          user_id: assignedTo,
+          percentage: effectivePercentage,
+          amount: totalCommissionAmount,
+          status: 'pending'
+        }]);
+    }
     
     const { error } = await supabase
       .from('project_installments')
@@ -167,6 +235,26 @@ export default function Home() {
     };
     return colors[type] || '#95a5a6';
   };
+
+  async function deleteProject(projectId, projectCode) {
+    if (!supabase) return;
+    
+    const confirmed = confirm(`確定要刪除專案「${projectCode}」嗎？此操作將同時刪除所有相關的付款期數和分潤記錄。`);
+    if (!confirmed) return;
+    
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId);
+    
+    if (error) {
+      console.error(error);
+      alert('刪除失敗');
+    } else {
+      alert('刪除成功');
+      fetchProjects();
+    }
+  }
 
   return (
     <Layout>
@@ -530,6 +618,68 @@ export default function Home() {
               </div>
             </div>
 
+            <h3 style={{ marginTop: '1.5rem', marginBottom: '1rem', color: '#2c3e50', backgroundColor: '#fff3cd', padding: '0.5rem' }}>
+              分潤設定 (Debug: {formData.use_fixed_commission ? 'Fixed' : 'Tiered'})
+            </h3>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr', 
+              gap: '1rem', 
+              marginBottom: '1.5rem',
+              backgroundColor: '#f8f9fa',
+              padding: '1rem',
+              border: '2px solid #28a745',
+              borderRadius: '8px'
+            }}>
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.use_fixed_commission}
+                    onChange={(e) => {
+                      console.log('Fixed commission checkbox changed:', e.target.checked);
+                      setFormData({...formData, use_fixed_commission: e.target.checked});
+                    }}
+                    style={{ marginRight: '0.5rem', transform: 'scale(1.2)' }}
+                  />
+                  <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>使用固定分潤比例</span>
+                </label>
+                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#6c757d' }}>
+                  {formData.use_fixed_commission ? '將使用固定比例計算分潤' : '將使用階梯式分潤計算'}
+                </div>
+                <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#28a745' }}>
+                  Debug: use_fixed_commission = {formData.use_fixed_commission.toString()}
+                </div>
+              </div>
+              
+              {formData.use_fixed_commission && (
+                <div style={{ backgroundColor: '#e8f5e9', padding: '0.5rem', borderRadius: '4px' }}>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    固定分潤比例 (%) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={formData.fixed_commission_percentage}
+                    onChange={(e) => {
+                      console.log('Fixed commission percentage changed:', e.target.value);
+                      setFormData({...formData, fixed_commission_percentage: e.target.value});
+                    }}
+                    required={formData.use_fixed_commission}
+                    placeholder="例如: 25"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '2px solid #28a745',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
             <button
               type="submit"
               style={{
@@ -598,25 +748,43 @@ export default function Home() {
                       {project.tax_last ? '稅最後付' : '分期含稅'}
                     </span>
                   </td>
-                  <td style={{ padding: '1rem' }}>{project.users?.name || '-'}</td>
+                  <td style={{ padding: '1rem' }}>
+                    {users.find(user => user.id === project.assigned_to)?.name || '-'}
+                  </td>
                   <td style={{ padding: '1rem' }}>
                     {new Date(project.created_at).toLocaleDateString('zh-TW')}
                   </td>
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    <button
-                      onClick={() => window.open(`/projects/${project.id}`, '_blank')}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        backgroundColor: '#3498db',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      查看詳情
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                      <button
+                        onClick={() => window.open(`/projects/${project.id}`, '_blank')}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#3498db',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem'
+                        }}
+                      >
+                        查看詳情
+                      </button>
+                      <button
+                        onClick={() => deleteProject(project.id, project.project_code)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#e74c3c',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem'
+                        }}
+                      >
+                        刪除
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

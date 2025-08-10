@@ -88,11 +88,32 @@ CREATE TABLE IF NOT EXISTS project_installments (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Add actual_amount column if it doesn't exist
+-- Add installment-related columns if they don't exist
 DO $$
 BEGIN
+    -- Add actual_amount column if it doesn't exist
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project_installments' AND column_name = 'actual_amount') THEN
         ALTER TABLE project_installments ADD COLUMN actual_amount NUMERIC;
+    END IF;
+    
+    -- Add commission_amount column if it doesn't exist (應撥分潤)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project_installments' AND column_name = 'commission_amount') THEN
+        ALTER TABLE project_installments ADD COLUMN commission_amount NUMERIC;
+    END IF;
+    
+    -- Add actual_commission column if it doesn't exist (實撥分潤)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project_installments' AND column_name = 'actual_commission') THEN
+        ALTER TABLE project_installments ADD COLUMN actual_commission NUMERIC;
+    END IF;
+    
+    -- Add commission_payment_date column if it doesn't exist (實際撥款日)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project_installments' AND column_name = 'commission_payment_date') THEN
+        ALTER TABLE project_installments ADD COLUMN commission_payment_date DATE;
+    END IF;
+    
+    -- Add commission_status column if it doesn't exist (撥款狀態)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'project_installments' AND column_name = 'commission_status') THEN
+        ALTER TABLE project_installments ADD COLUMN commission_status TEXT DEFAULT 'pending' CHECK (commission_status IN ('pending', 'paid', 'partial'));
     END IF;
 END $$;
 
@@ -162,3 +183,126 @@ END $$;
 UPDATE projects 
 SET tax_last = false 
 WHERE tax_last IS NULL;
+
+-- Generate installments for existing projects that don't have any
+DO $$
+DECLARE
+    project_record RECORD;
+    ratios INTEGER[];
+    total_ratio INTEGER;
+    tax_amount NUMERIC;
+    total_amount NUMERIC;
+    commission_percentage NUMERIC;
+    total_commission_amount NUMERIC;
+    commission_per_installment NUMERIC;
+    installment_amount NUMERIC;
+    base_installment_amount NUMERIC;
+    payment_date DATE;
+    i INTEGER;
+    ratio INTEGER;
+BEGIN
+    FOR project_record IN 
+        SELECT * FROM projects 
+        WHERE id NOT IN (SELECT DISTINCT project_id FROM project_installments WHERE project_id IS NOT NULL)
+        AND payment_template IS NOT NULL 
+        AND amount IS NOT NULL
+    LOOP
+        -- Parse payment template (default to '6/4' if invalid)
+        IF project_record.payment_template = '10' OR project_record.payment_template = '' THEN
+            ratios := ARRAY[10];
+        ELSIF project_record.payment_template = '6/4' THEN
+            ratios := ARRAY[6, 4];
+        ELSIF project_record.payment_template = '6/2/2' THEN
+            ratios := ARRAY[6, 2, 2];
+        ELSIF project_record.payment_template = '3/2/3/2' THEN
+            ratios := ARRAY[3, 2, 3, 2];
+        ELSE
+            -- Try to parse custom template like '5/3/2'
+            BEGIN
+                ratios := string_to_array(project_record.payment_template, '/')::INTEGER[];
+            EXCEPTION
+                WHEN OTHERS THEN
+                    ratios := ARRAY[6, 4]; -- fallback
+            END;
+        END IF;
+        
+        total_ratio := 0;
+        FOREACH ratio IN ARRAY ratios LOOP
+            total_ratio := total_ratio + ratio;
+        END LOOP;
+        
+        tax_amount := project_record.amount * 0.05;
+        total_amount := project_record.amount + tax_amount;
+        
+        -- Calculate commission percentage
+        commission_percentage := 0;
+        IF project_record.type = 'new' THEN
+            IF project_record.amount <= 100000 THEN
+                commission_percentage := 35;
+            ELSIF project_record.amount <= 300000 THEN
+                commission_percentage := 30;
+            ELSIF project_record.amount <= 600000 THEN
+                commission_percentage := 25;
+            ELSIF project_record.amount <= 1000000 THEN
+                commission_percentage := 20;
+            ELSE
+                commission_percentage := 10;
+            END IF;
+        ELSIF project_record.type = 'renewal' THEN
+            commission_percentage := 15;
+        END IF;
+        
+        total_commission_amount := (project_record.amount * commission_percentage) / 100;
+        commission_per_installment := total_commission_amount / array_length(ratios, 1);
+        
+        -- Create commission record if doesn't exist
+        IF commission_percentage > 0 AND project_record.assigned_to IS NOT NULL THEN
+            INSERT INTO commissions (project_id, user_id, percentage, amount, status)
+            VALUES (project_record.id, project_record.assigned_to, commission_percentage, total_commission_amount, 'pending')
+            ON CONFLICT DO NOTHING;
+        END IF;
+        
+        -- Generate installments
+        payment_date := COALESCE(project_record.first_payment_date, project_record.sign_date, CURRENT_DATE);
+        
+        FOR i IN 1..array_length(ratios, 1) LOOP
+            ratio := ratios[i];
+            
+            IF COALESCE(project_record.tax_last, false) THEN
+                -- Tax paid with last installment
+                base_installment_amount := (project_record.amount * ratio) / total_ratio;
+                IF i = array_length(ratios, 1) THEN
+                    installment_amount := base_installment_amount + tax_amount;
+                ELSE
+                    installment_amount := base_installment_amount;
+                END IF;
+            ELSE
+                -- Tax distributed across installments
+                installment_amount := (total_amount * ratio) / total_ratio;
+            END IF;
+            
+            INSERT INTO project_installments (
+                project_id, 
+                installment_number, 
+                due_date, 
+                amount, 
+                commission_amount,
+                commission_status,
+                status
+            ) VALUES (
+                project_record.id,
+                i,
+                payment_date,
+                ROUND(installment_amount),
+                ROUND(commission_per_installment),
+                'pending',
+                'pending'
+            );
+            
+            -- Next installment date (add 1 month)
+            payment_date := payment_date + INTERVAL '1 month';
+        END LOOP;
+        
+        RAISE NOTICE 'Generated % installments for project %', array_length(ratios, 1), project_record.project_code;
+    END LOOP;
+END $$;
