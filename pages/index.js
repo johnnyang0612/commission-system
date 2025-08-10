@@ -9,9 +9,13 @@ export default function Home() {
   }, []);
 
   async function fetchCases() {
+    if (!supabase) {
+      console.log('Supabase client not initialized');
+      return;
+    }
     let { data, error } = await supabase.from('cases').select('*');
     if (error) console.error(error);
-    else setCases(data);
+    else setCases(data || []);
   }
 
   return (
