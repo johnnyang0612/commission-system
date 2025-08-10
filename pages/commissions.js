@@ -289,8 +289,10 @@ export default function Commissions() {
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>業務員</th>
                 <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>專案金額</th>
                 <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>分潤%</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>分潤金額</th>
-                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>狀態</th>
+                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>總分潤</th>
+                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>已撥款</th>
+                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>待撥款</th>
+                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>撥款進度</th>
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>建立時間</th>
               </tr>
             </thead>
@@ -309,16 +311,32 @@ export default function Commissions() {
                   <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 'bold' }}>
                     NT$ {commission.amount?.toLocaleString()}
                   </td>
+                  <td style={{ padding: '1rem', textAlign: 'right', color: '#27ae60', fontWeight: 'bold' }}>
+                    NT$ {(commission.total_paid || 0).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '1rem', textAlign: 'right', color: '#e74c3c', fontWeight: 'bold' }}>
+                    NT$ {((commission.amount || 0) - (commission.total_paid || 0)).toLocaleString()}
+                  </td>
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    <span style={{
-                      padding: '0.25rem 0.75rem',
-                      borderRadius: '4px',
-                      backgroundColor: getStatusColor(commission.status),
-                      color: 'white',
-                      fontSize: '0.875rem'
-                    }}>
-                      {getStatusLabel(commission.status)}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
+                      <div style={{
+                        width: '60px',
+                        height: '8px',
+                        backgroundColor: '#e9ecef',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${Math.min(((commission.total_paid || 0) / (commission.amount || 1)) * 100, 100)}%`,
+                          height: '100%',
+                          backgroundColor: ((commission.total_paid || 0) >= (commission.amount || 0)) ? '#27ae60' : '#3498db',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
+                        {(((commission.total_paid || 0) / (commission.amount || 1)) * 100).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
                   <td style={{ padding: '1rem' }}>
                     {new Date(commission.created_at).toLocaleDateString('zh-TW')}
