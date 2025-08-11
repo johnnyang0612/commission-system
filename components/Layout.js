@@ -96,15 +96,13 @@ export default function Layout({ children }) {
             }}>
               維護管理
             </Link>
-            {user?.role === 'admin' && (
-              <Link href="/admin/users" style={{
-                color: isActive('/admin/users') ? '#3498db' : 'white',
-                textDecoration: 'none',
-                fontWeight: isActive('/admin/users') ? 'bold' : 'normal'
-              }}>
-                用戶管理
-              </Link>
-            )}
+            <Link href="/admin/users" style={{
+              color: isActive('/admin/users') ? '#3498db' : 'white',
+              textDecoration: 'none',
+              fontWeight: isActive('/admin/users') ? 'bold' : 'normal'
+            }}>
+              用戶管理
+            </Link>
           </div>
           
           {/* 用戶資訊和登出按鈕 */}

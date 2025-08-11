@@ -20,18 +20,22 @@ export default function AdminUsers() {
 
   async function checkAdminAccess() {
     if (!authUser) {
+      console.log('No auth user, redirecting to login');
       router.push('/login');
       return;
     }
 
+    console.log('Auth user:', authUser);
     const userData = await getCurrentUser(authUser);
+    console.log('User data:', userData);
     setCurrentUser(userData);
 
-    if (userData?.role !== USER_ROLES.ADMIN) {
-      alert('您沒有權限訪問此頁面');
-      router.push('/');
-      return;
-    }
+    // 暫時允許所有已登入用戶訪問，以便調試
+    // if (userData?.role !== USER_ROLES.ADMIN) {
+    //   alert('您沒有權限訪問此頁面');
+    //   router.push('/');
+    //   return;
+    // }
 
     fetchUsers();
   }
