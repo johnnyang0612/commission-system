@@ -380,14 +380,26 @@ export default function ProjectDetail() {
   }
 
   async function updateInstallmentCommission(installmentId, commission) {
-    if (!supabase) return;
+    if (!supabase || !project) return;
     
-    const commissionPerInstallment = commission.amount / installments.length;
+    // 找到當前期數
+    const currentInstallment = installments.find(inst => inst.id === installmentId);
+    if (!currentInstallment) return;
+    
+    // 計算當期付款比例（基於實際收款金額或預設金額）
+    const installmentAmount = currentInstallment.actual_amount || currentInstallment.amount;
+    const totalProjectAmount = project.amount;
+    const paymentRatio = installmentAmount / totalProjectAmount;
+    
+    // 按比例計算應撥分潤
+    const commissionForThisInstallment = commission.amount * paymentRatio;
+    
+    console.log(`期數 ${currentInstallment.installment_number}: 付款金額 ${installmentAmount}, 付款比例 ${(paymentRatio * 100).toFixed(1)}%, 應撥分潤 ${Math.round(commissionForThisInstallment)}`);
     
     const { error } = await supabase
       .from('project_installments')
       .update({
-        commission_amount: Math.round(commissionPerInstallment),
+        commission_amount: Math.round(commissionForThisInstallment),
         commission_status: 'pending'
       })
       .eq('id', installmentId);
@@ -664,8 +676,6 @@ export default function ProjectDetail() {
       totalCommissionAmount = baseAmount * 0.15;
       effectivePercentage = 15;
     }
-    const commissionPerInstallment = totalCommissionAmount / ratios.length;
-    
     const installments = [];
     let currentDate = new Date(firstPaymentDate);
     
@@ -682,12 +692,16 @@ export default function ProjectDetail() {
         installmentAmount = (totalAmount * ratio) / totalRatio;
       }
       
+      // 按照此期付款比例計算應撥分潤
+      const paymentRatio = ratio / totalRatio; // 此期付款在總金額中的比例
+      const commissionForThisInstallment = totalCommissionAmount * paymentRatio;
+      
       installments.push({
         project_id: projectId,
         installment_number: index + 1,
         due_date: currentDate.toISOString().split('T')[0],
         amount: Math.round(installmentAmount),
-        commission_amount: Math.round(commissionPerInstallment),
+        commission_amount: Math.round(commissionForThisInstallment),
         commission_status: 'pending',
         status: 'pending'
       });
