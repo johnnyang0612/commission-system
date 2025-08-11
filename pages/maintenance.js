@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useSimpleAuth } from '../utils/simpleAuth';
-import Layout from '../components/Layout';
 
 export default function MaintenanceManagement() {
   const { user } = useSimpleAuth();
@@ -204,14 +203,11 @@ export default function MaintenanceManagement() {
 
   if (loading) {
     return (
-      <Layout>
         <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
-      </Layout>
     );
   }
 
   return (
-    <Layout>
       <div style={{ padding: '2rem' }}>
 
       {/* 續約提醒區塊 */}
@@ -552,6 +548,5 @@ export default function MaintenanceManagement() {
         </div>
       )}
       </div>
-    </Layout>
   );
 }

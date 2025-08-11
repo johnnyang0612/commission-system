@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useSimpleAuth } from '../utils/simpleAuth';
-import Layout from '../components/Layout';
 
 export default function Profile() {
   const { user: authUser } = useSimpleAuth();
@@ -160,14 +159,11 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <Layout>
         <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
-      </Layout>
     );
   }
 
   return (
-    <Layout>
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '2rem' }}>
             <button
@@ -735,6 +731,5 @@ export default function Profile() {
           </div>
         )}
       </div>
-    </Layout>
   );
 }

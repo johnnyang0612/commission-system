@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import Layout from '../components/Layout';
 
 export default function Users() {
   const [users, setUsers] = useState([]);
@@ -79,7 +78,6 @@ export default function Users() {
   };
 
   return (
-    <Layout>
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '2rem' }}>
           <button
@@ -244,6 +242,5 @@ export default function Users() {
           )}
         </div>
       </div>
-    </Layout>
   );
 }

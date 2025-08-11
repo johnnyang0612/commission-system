@@ -3,7 +3,6 @@ import { useRouter } from 'next/router';
 import { supabase } from '../../utils/supabaseClient';
 import { useAuth } from '../../utils/auth';
 import { getCurrentUser, USER_ROLES } from '../../utils/permissions';
-import Layout from '../../components/Layout';
 
 export default function AdminUsers() {
   const router = useRouter();
@@ -115,14 +114,11 @@ export default function AdminUsers() {
 
   if (loading) {
     return (
-      <Layout>
         <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
-      </Layout>
     );
   }
 
   return (
-    <Layout>
       <div style={{ padding: '2rem' }}>
       <div style={{ marginBottom: '2rem' }}>
         <button
@@ -318,6 +314,5 @@ export default function AdminUsers() {
         </div>
       )}
       </div>
-    </Layout>
   );
 }
