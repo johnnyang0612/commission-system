@@ -1,11 +1,13 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
-import { canViewFinancialData, canEditCosts, getCurrentUserRole } from '../../utils/permissions';
+import { canViewFinancialData, canEditCosts, getCurrentUserRole, getCurrentUser, USER_ROLES } from '../../utils/permissions';
+import { useAuth } from '../../utils/auth';
 
 export default function ProjectDetail() {
   const router = useRouter();
   const { id } = router.query;
+  const { user: authUser } = useAuth();
   const [project, setProject] = useState(null);
   const [installments, setInstallments] = useState([]);
   const [commissions, setCommissions] = useState([]);
@@ -17,6 +19,7 @@ export default function ProjectDetail() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [editFormData, setEditFormData] = useState({});
   const [userRole, setUserRole] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [installmentForm, setInstallmentForm] = useState({
     installment_number: '',
     due_date: '',
@@ -48,9 +51,26 @@ export default function ProjectDetail() {
       fetchCommissions();
       fetchCosts();
       fetchUsers();
-      setUserRole(getCurrentUserRole());
     }
   }, [id]);
+  
+  useEffect(() => {
+    if (authUser) {
+      // 獲取當前用戶資料和角色
+      getCurrentUser(authUser).then(userData => {
+        setCurrentUser(userData);
+        setUserRole(userData?.role || 'admin'); // 預設給予管理員權限
+        console.log('當前用戶角色:', userData?.role);
+      }).catch(err => {
+        console.error('無法獲取用戶資料:', err);
+        // 錯誤時預設給予管理員權限
+        setUserRole('admin');
+      });
+    } else {
+      // 沒有用戶資料時，預設給予管理員權限
+      setUserRole('admin');
+    }
+  }, [authUser]);
 
   useEffect(() => {
     if (project && users.length > 0) {
