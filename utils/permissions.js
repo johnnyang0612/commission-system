@@ -94,12 +94,17 @@ export async function getCurrentUserRole(userId) {
       .eq('id', userId)
       .single();
     
-    if (error || !data) {
-      console.error('無法獲取用戶角色:', error);
+    if (error) {
+      console.warn('無法獲取用戶角色，使用預設值:', error);
+      // 如果是特定 email，給予管理員權限
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email === 'johnnyang0612@gmail.com') {
+        return USER_ROLES.ADMIN;
+      }
       return USER_ROLES.SALES; // 預設為業務
     }
     
-    return data.role || USER_ROLES.SALES;
+    return data?.role || USER_ROLES.SALES;
   } catch (err) {
     console.error('獲取角色錯誤:', err);
     return USER_ROLES.SALES;

@@ -21,8 +21,8 @@ export function useAuth() {
           setUser(session.user);
           setLoading(false);
           
-          // 同步用戶到資料庫
-          await syncUserToDatabase(session.user);
+          // 非阻塞同步用戶到資料庫
+          syncUserToDatabase(session.user).catch(console.error);
         } else {
           // 檢查演示模式
           const demoLoggedIn = localStorage.getItem('demo_logged_in');
@@ -78,23 +78,49 @@ export function useAuth() {
 // 手動同步用戶到資料庫
 const syncUserToDatabase = async (user) => {
   try {
-    const { error } = await supabase
+    // 先檢查用戶是否已存在
+    const { data: existingUser } = await supabase
       .from('users')
-      .upsert({
-        id: user.id,
-        email: user.email,
-        name: user.user_metadata?.full_name || user.email.split('@')[0],
-        role: 'sales',
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id'
-      });
+      .select('id')
+      .eq('id', user.id)
+      .single();
     
-    if (error) {
-      console.error('同步用戶資料失敗:', error);
+    if (!existingUser) {
+      // 用戶不存在，插入新記錄
+      const { error } = await supabase
+        .from('users')
+        .insert({
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.full_name || user.email.split('@')[0],
+          role: 'sales',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error('插入用戶資料失敗:', error);
+      } else {
+        console.log('用戶資料同步成功');
+      }
+    } else {
+      // 用戶已存在，更新基本資訊
+      const { error } = await supabase
+        .from('users')
+        .update({
+          email: user.email,
+          name: user.user_metadata?.full_name || user.email.split('@')[0],
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+      
+      if (error) {
+        console.error('更新用戶資料失敗:', error);
+      }
     }
   } catch (err) {
     console.error('同步用戶資料錯誤:', err);
+    // 不要讓同步錯誤影響登入
   }
 };
 
