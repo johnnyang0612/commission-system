@@ -12,9 +12,25 @@ export default function Layout({ children }) {
   const isActive = (path) => router.pathname === path;
   
   useEffect(() => {
-    if (user) {
+    if (user && user.id !== 'demo-user') {
       getCurrentUser(user).then(userData => {
         setCurrentUser(userData);
+      }).catch(err => {
+        console.error('Failed to get user data:', err);
+        // 使用基本用戶資訊
+        setCurrentUser({
+          id: user.id,
+          email: user.email,
+          name: user.email?.split('@')[0],
+          role: 'sales'
+        });
+      });
+    } else if (user && user.id === 'demo-user') {
+      setCurrentUser({
+        id: 'demo-user',
+        email: 'demo@example.com',
+        name: 'Demo User',
+        role: 'admin'
       });
     }
   }, [user]);
@@ -101,7 +117,7 @@ export default function Layout({ children }) {
             }}>
               付款記錄
             </Link>
-            {currentUser?.role === USER_ROLES.ADMIN && (
+            {(currentUser?.role === USER_ROLES.ADMIN || user?.email === 'johnny.yang@brightstream.com.tw') && (
               <Link href="/admin/users" style={{
                 color: isActive('/admin/users') ? '#3498db' : 'white',
                 textDecoration: 'none',

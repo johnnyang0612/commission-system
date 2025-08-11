@@ -119,6 +119,16 @@ export async function getCurrentUserRole(userId) {
 export async function getCurrentUser(authUser) {
   if (!authUser) return null;
   
+  // 演示用戶特殊處理
+  if (authUser.id === 'demo-user') {
+    return {
+      id: 'demo-user',
+      email: 'demo@example.com',
+      name: 'Demo User',
+      role: USER_ROLES.ADMIN
+    };
+  }
+  
   try {
     const { supabase } = await import('./supabaseClient');
     const { data, error } = await supabase
@@ -127,19 +137,35 @@ export async function getCurrentUser(authUser) {
       .eq('id', authUser.id)
       .single();
     
-    if (error || !data) {
-      // 如果用戶不存在，返回基本資訊
+    if (error) {
+      console.warn('無法獲取用戶資料:', error);
+      // 特定 email 給予管理員權限
+      if (authUser.email === 'johnny.yang@brightstream.com.tw') {
+        return {
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.user_metadata?.full_name || 'Johnny Yang',
+          role: USER_ROLES.ADMIN
+        };
+      }
+      // 其他用戶預設為業務
       return {
         id: authUser.id,
         email: authUser.email,
-        name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
-        role: USER_ROLES.SALES // 預設業務
+        name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+        role: USER_ROLES.SALES
       };
     }
     
     return data;
   } catch (err) {
     console.error('獲取用戶資料錯誤:', err);
-    return null;
+    // 返回基本資訊而不是 null
+    return {
+      id: authUser.id,
+      email: authUser.email,
+      name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+      role: USER_ROLES.SALES
+    };
   }
 }

@@ -12,28 +12,35 @@ function MyApp({ Component, pageProps }) {
   const shouldUseLayout = !noLayoutPages.includes(router.pathname);
 
   useEffect(() => {
-    // 檢查是否需要登入
+    // 簡化認證檢查
     const checkAuth = async () => {
       const publicPages = ['/login', '/test-login', '/auth/callback'];
       
-      // 如果是公開頁面，不需要檢查
+      // 公開頁面不需要檢查
       if (publicPages.includes(router.pathname)) {
         return;
       }
       
-      // 檢查 Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        // 檢查演示模式
-        const demoLoggedIn = localStorage.getItem('demo_logged_in');
-        if (demoLoggedIn !== 'true') {
-          router.push('/login');
+      try {
+        // 檢查 Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          // 檢查演示模式
+          const demoLoggedIn = localStorage.getItem('demo_logged_in');
+          if (demoLoggedIn !== 'true') {
+            router.push('/login');
+          }
         }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        // 發生錯誤時不阻擋用戶
       }
     };
 
-    checkAuth();
+    // 延遲檢查以避免競爭狀態
+    const timer = setTimeout(checkAuth, 100);
+    return () => clearTimeout(timer);
   }, [router.pathname]);
 
   if (shouldUseLayout) {
