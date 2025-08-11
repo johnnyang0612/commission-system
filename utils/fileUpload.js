@@ -2,7 +2,7 @@
 import { supabase } from './supabaseClient';
 
 // 允許的檔案類型
-const ALLOWED_FILE_TYPES = {
+export const ALLOWED_FILE_TYPES = {
   images: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
   documents: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   spreadsheets: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
