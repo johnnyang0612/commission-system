@@ -291,6 +291,64 @@ export default function ProjectDetail() {
     }
   }
 
+  async function updateCostStatus(costId, newStatus, paymentDate, actualAmount) {
+    if (!supabase) return;
+    
+    const updateData = { payment_status: newStatus };
+    if (newStatus === 'paid' && paymentDate) {
+      updateData.payment_date = paymentDate;
+    }
+    if (actualAmount !== undefined) {
+      updateData.actual_amount = parseFloat(actualAmount);
+    }
+    
+    const { error } = await supabase
+      .from('project_costs')
+      .update(updateData)
+      .eq('id', costId);
+    
+    if (error) {
+      console.error(error);
+      alert('更新失敗');
+    } else {
+      alert('更新成功');
+      fetchCosts();
+    }
+  }
+  
+  async function editCost(cost) {
+    const newDescription = prompt('編輯描述:', cost.description || '');
+    if (newDescription === null) return;
+    
+    const newAmount = prompt('編輯金額:', cost.amount || 0);
+    if (newAmount === null) return;
+    
+    const newCostType = prompt('編輯類型 (development/design/marketing/other):', cost.cost_type || 'other');
+    if (newCostType === null) return;
+    
+    const newInstallment = prompt('編輯關聯期數 (留空表示不綁定):', cost.installment_number || '');
+    
+    const updateData = {
+      description: newDescription,
+      amount: parseFloat(newAmount),
+      cost_type: newCostType,
+      installment_number: newInstallment ? parseInt(newInstallment) : null
+    };
+    
+    const { error } = await supabase
+      .from('project_costs')
+      .update(updateData)
+      .eq('id', cost.id);
+    
+    if (error) {
+      console.error(error);
+      alert('編輯失敗: ' + error.message);
+    } else {
+      alert('編輯成功');
+      fetchCosts();
+    }
+  }
+  
   async function deleteCost(costId, description) {
     if (!supabase) return;
     
@@ -2273,6 +2331,20 @@ export default function ProjectDetail() {
                           標記已支出
                         </button>
                       )}
+                      <button
+                        onClick={() => editCost(cost)}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#3498db',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        編輯
+                      </button>
                       <button
                         onClick={() => deleteCost(cost.id, cost.description || cost.cost_type)}
                         style={{
