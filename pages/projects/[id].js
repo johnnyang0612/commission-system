@@ -1242,7 +1242,7 @@ export default function ProjectDetail() {
               <tr style={{ backgroundColor: '#f8f9fa' }}>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>期數</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '110px' }}>預定日期</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>應收金額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '120px' }}>應收金額 (比例)</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>實收金額</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '110px' }}>實際付款日</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>狀態</th>
@@ -1257,16 +1257,37 @@ export default function ProjectDetail() {
               </tr>
             </thead>
           <tbody>
-            {installments.map(installment => {
+            {installments.map((installment, index) => {
               // 計算該期應撥分潤金額
               const commission = commissions.length > 0 ? commissions[0] : null;
               const commissionPerInstallment = installment.commission_amount || (commission ? (commission.amount / installments.length) : 0);
+              
+              // 計算百分比
+              const totalAmount = project.amount * 1.05; // 含稅總額
+              const baseAmount = project.amount; // 不含稅金額
+              const percentage = ((installment.amount / totalAmount) * 100).toFixed(1);
+              
+              // 檢查是否為最後一期及是否為稅最後付
+              const isLastInstallment = index === installments.length - 1;
+              const taxAmount = project.amount * 0.05;
+              const baseInstallmentAmount = installment.amount - (isLastInstallment && project.tax_last ? taxAmount : 0);
+              const hasTax = isLastInstallment && project.tax_last;
               
               return (
                 <tr key={installment.id} style={{ borderBottom: '1px solid #dee2e6' }}>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>第 {installment.installment_number} 期</td>
                   <td style={{ padding: '0.75rem 0.5rem' }}>{installment.due_date}</td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>NT$ {installment.amount?.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>NT$ {installment.amount?.toLocaleString()}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#666' }}>({percentage}%)</div>
+                      {hasTax && (
+                        <div style={{ fontSize: '0.7rem', color: '#e74c3c', marginTop: '2px' }}>
+                          含稅金 NT$ {taxAmount.toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: installment.actual_amount ? 'bold' : 'normal' }}>
                     {installment.actual_amount ? `NT$ ${installment.actual_amount.toLocaleString()}` : '-'}
                   </td>
@@ -1393,6 +1414,47 @@ export default function ProjectDetail() {
                 </tr>
               );
             })}
+            
+            {/* 總計行 */}
+            {installments.length > 0 && (
+              <tr style={{ 
+                backgroundColor: '#f8f9fa', 
+                borderTop: '2px solid #2c3e50',
+                fontWeight: 'bold'
+              }}>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>總計</td>
+                <td style={{ padding: '0.75rem 0.5rem' }}>-</td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#2c3e50' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold' }}>NT$ {installments.reduce((sum, inst) => sum + (inst.amount || 0), 0).toLocaleString()}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>(100%)</div>
+                  </div>
+                </td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#e74c3c' }}>
+                  NT$ {installments
+                    .filter(inst => inst.actual_amount)
+                    .reduce((sum, inst) => sum + (inst.actual_amount || 0), 0)
+                    .toLocaleString()}
+                </td>
+                <td style={{ padding: '0.75rem 0.5rem' }}>-</td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>-</td>
+                {canViewFinancialData(userRole) && (
+                  <>
+                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#27ae60' }}>
+                      NT$ {installments.reduce((sum, inst) => sum + (inst.commission_amount || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#e74c3c' }}>
+                      NT$ {installments
+                        .filter(inst => inst.actual_commission)
+                        .reduce((sum, inst) => sum + (inst.actual_commission || 0), 0)
+                        .toLocaleString()}
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>-</td>
+                  </>
+                )}
+                <td style={{ padding: '0.75rem 0.5rem' }}>-</td>
+              </tr>
+            )}
             </tbody>
           </table>
         </div>
