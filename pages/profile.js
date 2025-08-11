@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useSimpleAuth } from '../utils/simpleAuth';
-import { downloadLaborCompensationForm } from '../utils/pdfGenerator';
 import Layout from '../components/Layout';
 
 export default function Profile() {
@@ -158,20 +157,6 @@ export default function Profile() {
     }
   }
 
-  async function downloadLaborForm() {
-    if (!user || !formData.name) {
-      alert('請先完整填寫個人資料後再下載勞務報酬單');
-      return;
-    }
-    
-    try {
-      await downloadLaborCompensationForm(formData);
-      alert('勞務報酬單下載成功！');
-    } catch (error) {
-      console.error('下載失敗:', error);
-      alert('下載失敗: ' + error.message);
-    }
-  }
 
   if (loading) {
     return (
@@ -185,21 +170,6 @@ export default function Profile() {
     <Layout>
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button
-              onClick={downloadLaborForm}
-              style={{
-                padding: '0.75rem 1.5rem',
-                backgroundColor: '#27ae60',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              下載勞務報酬單
-            </button>
             <button
               onClick={() => setIsEditing(!isEditing)}
               style={{
@@ -214,7 +184,6 @@ export default function Profile() {
             >
               {isEditing ? '取消編輯' : '編輯資料'}
             </button>
-          </div>
         </div>
 
         {isEditing ? (

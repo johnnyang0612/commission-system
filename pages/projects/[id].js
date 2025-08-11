@@ -6,6 +6,7 @@ import { useAuth } from '../../utils/auth';
 import FileUpload from '../../components/FileUpload';
 import ProjectDocuments from '../../components/ProjectDocuments';
 import { STORAGE_BUCKETS, FOLDER_STRUCTURE } from '../../utils/fileUpload';
+import { generateInstallmentLaborForm } from '../../utils/laborFormGenerator';
 
 export default function ProjectDetail() {
   const router = useRouter();
@@ -310,6 +311,59 @@ export default function ProjectDetail() {
     }
   }
 
+  async function downloadLaborForm(installment) {
+    try {
+      // 獲取當前用戶資料
+      const currentUser = await getCurrentUser(authUser);
+      if (!currentUser) {
+        alert('請先登入');
+        return;
+      }
+      
+      // 獲取用戶完整資料
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+        
+      if (userError || !userData) {
+        alert('請先完善個人資料（銀行資訊、身分證號等）');
+        router.push('/profile');
+        return;
+      }
+      
+      // 檢查必要資料
+      if (!userData.name || !userData.bank_name || !userData.account_number) {
+        alert('請先在個人資料頁面完善銀行資訊');
+        router.push('/profile');
+        return;
+      }
+      
+      // 計算分潤資料
+      const commission = commissions.length > 0 ? commissions[0] : null;
+      const commissionData = {
+        amount: installment.actual_commission || installment.commission_amount || 0,
+        commission_rate: commission?.percentage || 0
+      };
+      
+      // 生成勞務報酬單
+      await generateInstallmentLaborForm(
+        project,
+        {
+          ...installment,
+          description: installment.description || `第 ${installment.installment_number} 期付款`
+        },
+        userData,
+        commissionData
+      );
+      
+    } catch (error) {
+      console.error('下載勞務報酬單失敗:', error);
+      alert('下載失敗: ' + error.message);
+    }
+  }
+  
   async function updateInstallmentStatus(installmentId, status, paymentDate, actualAmount, actualCommission, commissionDate) {
     if (!supabase) return;
     
@@ -1460,6 +1514,28 @@ export default function ProjectDetail() {
                           }}
                         >
                           標記已付
+                        </button>
+                      )}
+                      {/* 勞務報酬單按鈕 - 只有業務人員本人可以下載 */}
+                      {assignedUser?.id === authUser?.id && installment.commission_amount > 0 && (
+                        <button
+                          onClick={() => downloadLaborForm(installment)}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#9b59b6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.7rem',
+                            fontWeight: '500',
+                            whiteSpace: 'nowrap',
+                            minWidth: 'fit-content',
+                            marginLeft: '0.25rem'
+                          }}
+                          title="下載此期勞務報酬單"
+                        >
+                          勞務報酬單
                         </button>
                       )}
                       {installment.status === 'paid' && (
