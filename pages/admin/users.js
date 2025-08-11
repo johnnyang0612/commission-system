@@ -12,15 +12,40 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [editingUserId, setEditingUserId] = useState(null);
   const [selectedRole, setSelectedRole] = useState('');
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    checkAdminAccess();
-  }, [authUser]);
+    // 給認證一些時間載入
+    const timer = setTimeout(() => {
+      setAuthChecked(true);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (authChecked) {
+      checkAdminAccess();
+    }
+  }, [authUser, authChecked]);
 
   async function checkAdminAccess() {
     if (!authUser) {
-      console.log('No auth user, redirecting to login');
-      router.push('/login');
+      console.log('No auth user, checking demo mode...');
+      // 檢查是否為演示模式
+      const demoMode = localStorage.getItem('demo_logged_in');
+      if (demoMode === 'true') {
+        // 使用演示用戶
+        const demoUser = {
+          id: 'demo-user',
+          email: 'demo@example.com',
+          role: 'admin'
+        };
+        setCurrentUser(demoUser);
+        fetchUsers();
+      } else {
+        console.log('Not in demo mode, redirecting to login');
+        router.push('/login');
+      }
       return;
     }
 

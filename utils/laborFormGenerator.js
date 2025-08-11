@@ -3,20 +3,29 @@
 // 動態載入 pdfmake（只在瀏覽器環境）
 let pdfMake = null;
 
-if (typeof window !== 'undefined') {
-  pdfMake = require('pdfmake/build/pdfmake');
-  const pdfFonts = require('pdfmake/build/vfs_fonts');
-  pdfMake.vfs = pdfFonts.pdfMake.vfs;
-  
-  // 添加中文字體支援
-  pdfMake.fonts = {
-    Roboto: {
-      normal: 'Roboto-Regular.ttf',
-      bold: 'Roboto-Medium.ttf',
-      italics: 'Roboto-Italic.ttf',
-      bolditalics: 'Roboto-MediumItalic.ttf'
+async function loadPdfMake() {
+  if (typeof window !== 'undefined' && !pdfMake) {
+    const pdfMakeModule = await import('pdfmake/build/pdfmake');
+    const pdfFontsModule = await import('pdfmake/build/vfs_fonts');
+    pdfMake = pdfMakeModule.default || pdfMakeModule;
+    
+    if (pdfFontsModule.pdfMake) {
+      pdfMake.vfs = pdfFontsModule.pdfMake.vfs;
+    } else if (pdfFontsModule.default) {
+      pdfMake.vfs = pdfFontsModule.default.pdfMake.vfs;
     }
-  };
+    
+    // 添加中文字體支援
+    pdfMake.fonts = {
+      Roboto: {
+        normal: 'Roboto-Regular.ttf',
+        bold: 'Roboto-Medium.ttf',
+        italics: 'Roboto-Italic.ttf',
+        bolditalics: 'Roboto-MediumItalic.ttf'
+      }
+    };
+  }
+  return pdfMake;
 }
 
 /**
@@ -30,6 +39,12 @@ export async function generateInstallmentLaborForm(projectData, installmentData,
   try {
     if (typeof window === 'undefined') {
       throw new Error('PDF generation only available in browser');
+    }
+    
+    // 確保 pdfMake 已載入
+    await loadPdfMake();
+    if (!pdfMake) {
+      throw new Error('Failed to load PDF library');
     }
 
     const currentDate = new Date().toLocaleDateString('zh-TW');
@@ -231,6 +246,12 @@ export async function generateInstallmentLaborForm(projectData, installmentData,
  * 批量生成多個分期的勞務報酬單
  */
 export async function generateBatchLaborForms(projectData, installments, userData, commissionRate) {
+  // 確保 pdfMake 已載入
+  await loadPdfMake();
+  if (!pdfMake) {
+    throw new Error('Failed to load PDF library');
+  }
+  
   const results = [];
   
   for (const installment of installments) {
