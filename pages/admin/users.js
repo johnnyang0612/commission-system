@@ -37,15 +37,22 @@ export default function AdminUsers() {
 
   async function fetchUsers() {
     setLoading(true);
+    console.log('正在獲取用戶列表...');
+    
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .order('created_at', { ascending: false });
 
+    console.log('用戶資料:', data);
+    console.log('錯誤:', error);
+    
     if (error) {
       console.error('獲取用戶失敗:', error);
+      alert('無法獲取用戶列表: ' + error.message);
     } else {
       setUsers(data || []);
+      console.log(`已載入 ${data?.length || 0} 個用戶`);
     }
     setLoading(false);
   }
@@ -121,6 +128,23 @@ export default function AdminUsers() {
           }}
         >
           ← 返回首頁
+        </button>
+        <button
+          onClick={() => {
+            console.log('當前用戶列表:', users);
+            alert(`當前有 ${users.length} 個用戶\n第一個用戶: ${users[0]?.email || '無'}`);
+          }}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: '#3498db',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginRight: '1rem'
+          }}
+        >
+          檢查資料
         </button>
         <h1 style={{ display: 'inline-block', margin: 0 }}>用戶角色管理</h1>
       </div>

@@ -10,6 +10,9 @@ function MyApp({ Component, pageProps }) {
   // 不需要 Layout 的頁面
   const noLayoutPages = ['/login', '/test-login', '/auth/callback'];
   const shouldUseLayout = !noLayoutPages.includes(router.pathname);
+  
+  // 輸出路徑以便除錯
+  console.log('Current path:', router.pathname);
 
   useEffect(() => {
     // 簡化認證檢查
