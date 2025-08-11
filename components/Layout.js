@@ -1,46 +1,18 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useAuth, signOut } from '../utils/auth';
-import { useEffect, useState } from 'react';
-import { getCurrentUser, USER_ROLES } from '../utils/permissions';
+import { useSimpleAuth, signOutSimple } from '../utils/simpleAuth';
+import { USER_ROLES } from '../utils/permissions';
 
 export default function Layout({ children }) {
   const router = useRouter();
-  const { user, loading } = useAuth();
-  const [currentUser, setCurrentUser] = useState(null);
+  const { user, loading } = useSimpleAuth();
   
   const isActive = (path) => router.pathname === path;
-  
-  useEffect(() => {
-    if (user && user.id !== 'demo-user') {
-      getCurrentUser(user).then(userData => {
-        setCurrentUser(userData);
-      }).catch(err => {
-        console.error('Failed to get user data:', err);
-        // 使用基本用戶資訊
-        setCurrentUser({
-          id: user.id,
-          email: user.email,
-          name: user.email?.split('@')[0],
-          role: 'sales'
-        });
-      });
-    } else if (user && user.id === 'demo-user') {
-      setCurrentUser({
-        id: 'demo-user',
-        email: 'demo@example.com',
-        name: 'Demo User',
-        role: 'admin'
-      });
-    }
-  }, [user]);
   
   const handleLogout = async () => {
     const confirmed = confirm('確定要登出嗎？');
     if (confirmed) {
-      // 清除演示模式標記
-      localStorage.removeItem('demo_logged_in');
-      await signOut();
+      await signOutSimple();
       router.push('/login');
     }
   };
@@ -117,7 +89,7 @@ export default function Layout({ children }) {
             }}>
               付款記錄
             </Link>
-            {(currentUser?.role === USER_ROLES.ADMIN || user?.email === 'johnny.yang@brightstream.com.tw') && (
+            {user?.role === 'admin' && (
               <Link href="/admin/users" style={{
                 color: isActive('/admin/users') ? '#3498db' : 'white',
                 textDecoration: 'none',
