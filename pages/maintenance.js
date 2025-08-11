@@ -213,12 +213,6 @@ export default function MaintenanceManagement() {
   return (
     <Layout>
       <div style={{ padding: '2rem' }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <h1>維護費管理</h1>
-        <p style={{ color: '#666', marginTop: '0.5rem' }}>
-          管理專案的維護合約和月費收款
-        </p>
-      </div>
 
       {/* 續約提醒區塊 */}
       {renewalAlerts.length > 0 && (

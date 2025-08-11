@@ -45,10 +45,13 @@ export default function Profile() {
 
   useEffect(() => {
     fetchUserProfile();
-  }, []);
+  }, [authUser]);
 
   async function fetchUserProfile() {
-    if (!supabase || !authUser) return;
+    if (!supabase || !authUser) {
+      setLoading(false);
+      return;
+    }
     
     let userData = null;
     
@@ -181,8 +184,7 @@ export default function Profile() {
   return (
     <Layout>
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2 style={{ margin: 0 }}>個人資料管理</h2>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '2rem' }}>
           <div style={{ display: 'flex', gap: '1rem' }}>
             <button
               onClick={downloadLaborForm}
