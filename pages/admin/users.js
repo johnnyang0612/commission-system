@@ -53,7 +53,7 @@ export default function AdminUsers() {
   async function updateUserRole(userId, newRole) {
     const { error } = await supabase
       .from('users')
-      .update({ role: newRole, updated_at: new Date().toISOString() })
+      .update({ role: newRole })
       .eq('id', userId);
 
     if (error) {

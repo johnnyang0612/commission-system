@@ -94,8 +94,7 @@ const syncUserToDatabase = async (user) => {
           email: user.email,
           name: user.user_metadata?.full_name || user.email.split('@')[0],
           role: 'sales',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          created_at: new Date().toISOString()
         });
       
       if (error) {
@@ -109,8 +108,7 @@ const syncUserToDatabase = async (user) => {
         .from('users')
         .update({
           email: user.email,
-          name: user.user_metadata?.full_name || user.email.split('@')[0],
-          updated_at: new Date().toISOString()
+          name: user.user_metadata?.full_name || user.email.split('@')[0]
         })
         .eq('id', user.id);
       
