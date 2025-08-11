@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { canViewFinancialData, canEditCosts, getCurrentUserRole, getCurrentUser, USER_ROLES } from '../../utils/permissions';
 import { useAuth } from '../../utils/auth';
+import FileUpload from '../../components/FileUpload';
+import ProjectDocuments from '../../components/ProjectDocuments';
+import { STORAGE_BUCKETS, FOLDER_STRUCTURE } from '../../utils/fileUpload';
 
 export default function ProjectDetail() {
   const router = useRouter();
@@ -34,7 +37,19 @@ export default function ProjectDetail() {
     notes: '',
     installment_number: '', // 關聯期數，空值代表直接支出
     is_paid: false, // 是否已支付
-    paid_date: '' // 支付日期
+    paid_date: '', // 支付日期
+    // 發票/單據管理欄位
+    invoice_number: '', // 發票號碼
+    invoice_date: '', // 發票日期
+    vendor_name: '', // 供應商名稱
+    vendor_tax_id: '', // 供應商統一編號
+    receipt_type: 'invoice', // 單據類型
+    document_status: 'pending', // 單據狀態
+    tax_amount: '', // 稅額
+    net_amount: '', // 淨額
+    approval_status: 'pending', // 審核狀態
+    // 檔案管理
+    uploaded_files: [] // 已上傳檔案列表
   });
   const [maintenanceForm, setMaintenanceForm] = useState({
     warranty_period: '',
@@ -194,7 +209,27 @@ export default function ProjectDetail() {
       installment_number: costForm.installment_number ? parseInt(costForm.installment_number) : null,
       is_paid: costForm.is_paid,
       paid_date: costForm.is_paid ? costForm.paid_date : null,
-      created_by: 'current_user' // 在實際應用中應該是當前登錄用戶
+      created_by: 'current_user', // 在實際應用中應該是當前登錄用戶
+      // 發票/單據管理欄位
+      invoice_number: costForm.invoice_number,
+      invoice_date: costForm.invoice_date || null,
+      vendor_name: costForm.vendor_name,
+      vendor_tax_id: costForm.vendor_tax_id,
+      receipt_type: costForm.receipt_type,
+      document_status: costForm.document_status,
+      tax_amount: costForm.tax_amount ? parseFloat(costForm.tax_amount) : 0,
+      net_amount: costForm.net_amount ? parseFloat(costForm.net_amount) : parseFloat(costForm.amount),
+      approval_status: costForm.approval_status,
+      file_attachments: JSON.stringify(costForm.uploaded_files.map(file => ({
+        fileName: file.fileName,
+        originalName: file.originalName,
+        filePath: file.filePath,
+        publicUrl: file.publicUrl,
+        fileSize: file.fileSize,
+        fileType: file.fileType,
+        uploadedAt: new Date().toISOString(),
+        bucket: file.bucket
+      })))
     };
     
     const { error } = await supabase
@@ -215,7 +250,18 @@ export default function ProjectDetail() {
         notes: '',
         installment_number: '',
         is_paid: false,
-        paid_date: ''
+        paid_date: '',
+        // 發票/單據管理欄位
+        invoice_number: '',
+        invoice_date: '',
+        vendor_name: '',
+        vendor_tax_id: '',
+        receipt_type: 'invoice',
+        document_status: 'pending',
+        tax_amount: '',
+        net_amount: '',
+        approval_status: 'pending',
+        uploaded_files: []
       });
       fetchCosts();
     }
@@ -612,12 +658,11 @@ export default function ProjectDetail() {
           .insert({
             project_id: id,
             maintenance_fee: parseFloat(maintenanceForm.maintenance_fee),
-            billing_cycle: 'monthly',
             start_date: maintenanceForm.maintenance_start_date,
             next_billing_date: maintenanceForm.maintenance_billing_date || maintenanceForm.maintenance_start_date,
             status: 'active',
-            auto_generate_bills: true,
-            notes: `由專案 ${project.project_name} 的維護合約自動創建`
+            notes: `由專案 ${project?.project_name} 的維護合約自動創建`,
+            created_by: 'system'
           });
         
         if (insertError) throw insertError;
@@ -1774,6 +1819,213 @@ export default function ProjectDetail() {
                 }}
               />
             </div>
+            
+            {/* 發票/單據管理區塊 */}
+            <div style={{ 
+              border: '2px solid #3498db', 
+              borderRadius: '8px', 
+              padding: '1.5rem', 
+              marginBottom: '1rem',
+              backgroundColor: '#f8f9ff'
+            }}>
+              <h4 style={{ marginTop: 0, marginBottom: '1rem', color: '#3498db' }}>發票/單據資訊</h4>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    單據類型
+                  </label>
+                  <select
+                    value={costForm.receipt_type}
+                    onChange={(e) => setCostForm({...costForm, receipt_type: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <option value="invoice">統一發票</option>
+                    <option value="receipt">收據</option>
+                    <option value="other">其他單據</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    發票號碼
+                  </label>
+                  <input
+                    type="text"
+                    value={costForm.invoice_number}
+                    onChange={(e) => setCostForm({...costForm, invoice_number: e.target.value})}
+                    placeholder="例如：AB12345678"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    發票日期
+                  </label>
+                  <input
+                    type="date"
+                    value={costForm.invoice_date}
+                    onChange={(e) => setCostForm({...costForm, invoice_date: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    供應商名稱
+                  </label>
+                  <input
+                    type="text"
+                    value={costForm.vendor_name}
+                    onChange={(e) => setCostForm({...costForm, vendor_name: e.target.value})}
+                    placeholder="供應商公司名稱"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    供應商統一編號
+                  </label>
+                  <input
+                    type="text"
+                    value={costForm.vendor_tax_id}
+                    onChange={(e) => setCostForm({...costForm, vendor_tax_id: e.target.value})}
+                    placeholder="8位數統一編號"
+                    maxLength="8"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    淨額 (不含稅)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={costForm.net_amount}
+                    onChange={(e) => {
+                      const netAmount = parseFloat(e.target.value) || 0;
+                      const taxAmount = netAmount * 0.05; // 5% 營業稅
+                      setCostForm({
+                        ...costForm, 
+                        net_amount: e.target.value,
+                        tax_amount: taxAmount.toString(),
+                        amount: (netAmount + taxAmount).toString()
+                      });
+                    }}
+                    placeholder="不含稅金額"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    稅額
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={costForm.tax_amount}
+                    onChange={(e) => setCostForm({...costForm, tax_amount: e.target.value})}
+                    placeholder="營業稅額"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                    單據狀態
+                  </label>
+                  <select
+                    value={costForm.document_status}
+                    onChange={(e) => setCostForm({...costForm, document_status: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <option value="pending">待收單據</option>
+                    <option value="received">已收到</option>
+                    <option value="filed">已歸檔</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            {/* 檔案上傳區塊 */}
+            <div style={{
+              border: '2px solid #27ae60',
+              borderRadius: '8px',
+              padding: '1.5rem',
+              marginBottom: '1rem',
+              backgroundColor: '#f8fff8'
+            }}>
+              <h4 style={{ marginTop: 0, marginBottom: '1rem', color: '#27ae60' }}>發票/單據上傳</h4>
+              <FileUpload
+                onFileUploaded={(fileInfo) => {
+                  setCostForm({
+                    ...costForm,
+                    uploaded_files: [...costForm.uploaded_files, fileInfo]
+                  });
+                }}
+                onFileDeleted={(deletedFile) => {
+                  setCostForm({
+                    ...costForm,
+                    uploaded_files: costForm.uploaded_files.filter(file => file.filePath !== deletedFile.filePath)
+                  });
+                }}
+                bucket={STORAGE_BUCKETS.INVOICES}
+                folder={`${FOLDER_STRUCTURE.COSTS}/${new Date().getFullYear()}/${id}`}
+                currentFiles={costForm.uploaded_files}
+                maxFiles={5}
+                label="上傳發票/收據"
+              />
+            </div>
+            
             <button
               type="submit"
               style={{
@@ -1792,16 +2044,20 @@ export default function ProjectDetail() {
         )}
 
         <div style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '800px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '1200px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>成本類型</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '150px' }}>描述</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '80px' }}>金額</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '60px' }}>期數</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>支付狀態</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '80px' }}>支付日期</th>
-                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>備註</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '80px' }}>成本類型</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '120px' }}>描述</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '120px' }}>供應商</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '100px' }}>發票號碼</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '80px' }}>淨額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '60px' }}>稅額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '80px' }}>總額</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '50px' }}>期數</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '60px' }}>單據狀態</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '60px' }}>支付狀態</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '60px' }}>附件</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>操作</th>
               </tr>
             </thead>
@@ -1825,11 +2081,55 @@ export default function ProjectDetail() {
                     </span>
                   </td>
                   <td style={{ padding: '0.75rem 0.5rem' }}>{cost.description || '-'}</td>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{cost.vendor_name || '-'}</div>
+                      {cost.vendor_tax_id && (
+                        <div style={{ fontSize: '0.7rem', color: '#666' }}>統編: {cost.vendor_tax_id}</div>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem' }}>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{cost.invoice_number || '-'}</div>
+                      {cost.invoice_date && (
+                        <div style={{ fontSize: '0.7rem', color: '#666' }}>{cost.invoice_date}</div>
+                      )}
+                      <span style={{
+                        padding: '0.1rem 0.3rem',
+                        borderRadius: '3px',
+                        backgroundColor: cost.receipt_type === 'invoice' ? '#3498db' : cost.receipt_type === 'receipt' ? '#f39c12' : '#95a5a6',
+                        color: 'white',
+                        fontSize: '0.6rem'
+                      }}>
+                        {cost.receipt_type === 'invoice' ? '發票' : cost.receipt_type === 'receipt' ? '收據' : '其他'}
+                      </span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: '#2c3e50' }}>
+                    NT$ {(cost.net_amount || cost.amount || 0).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#e67e22' }}>
+                    NT$ {(cost.tax_amount || 0).toLocaleString()}
+                  </td>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', color: '#e74c3c' }}>
                     NT$ {parseFloat(cost.amount).toLocaleString()}
                   </td>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
-                    {cost.installment_number ? `第${cost.installment_number}期` : '直接支出'}
+                    {cost.installment_number ? `第${cost.installment_number}期` : '-'}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                    <span style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '4px',
+                      backgroundColor: cost.document_status === 'filed' ? '#27ae60' : 
+                                     cost.document_status === 'received' ? '#3498db' : '#f39c12',
+                      color: 'white',
+                      fontSize: '0.7rem'
+                    }}>
+                      {cost.document_status === 'filed' ? '已歸檔' : 
+                       cost.document_status === 'received' ? '已收到' : '待收'}
+                    </span>
                   </td>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
                     <span style={{
@@ -1837,19 +2137,50 @@ export default function ProjectDetail() {
                       borderRadius: '4px',
                       backgroundColor: cost.is_paid ? '#27ae60' : '#f39c12',
                       color: 'white',
-                      fontSize: '0.75rem'
+                      fontSize: '0.7rem'
                     }}>
                       {cost.is_paid ? '已支出' : '待支出'}
                     </span>
                   </td>
-                  <td style={{ padding: '0.75rem 0.5rem' }}>
-                    {cost.is_paid && cost.paid_date ? cost.paid_date : '-'}
-                  </td>
-                  <td style={{ padding: '0.75rem 0.5rem', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {cost.notes || '-'}
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                    {(() => {
+                      try {
+                        const attachments = cost.file_attachments ? JSON.parse(cost.file_attachments) : [];
+                        return attachments.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            {attachments.map((file, index) => (
+                              <a
+                                key={index}
+                                href={file.publicUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  padding: '0.2rem 0.4rem',
+                                  backgroundColor: '#3498db',
+                                  color: 'white',
+                                  textDecoration: 'none',
+                                  borderRadius: '3px',
+                                  fontSize: '0.7rem',
+                                  display: 'block',
+                                  textAlign: 'center'
+                                }}
+                              >
+                                {file.originalName?.length > 10 
+                                  ? file.originalName.substring(0, 10) + '...' 
+                                  : file.originalName || '檔案'}
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#999', fontSize: '0.8rem' }}>無附件</span>
+                        );
+                      } catch (e) {
+                        return <span style={{ color: '#999', fontSize: '0.8rem' }}>無附件</span>;
+                      }
+                    })()}
                   </td>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                       {!cost.is_paid && (
                         <button
                           onClick={() => markCostAsPaid(cost.id)}
@@ -2044,6 +2375,11 @@ export default function ProjectDetail() {
             更新維護資訊
           </button>
         </form>
+      </div>
+
+      {/* 專案文件管理區塊 */}
+      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', marginBottom: '2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+        <ProjectDocuments projectId={id} userRole={userRole} />
       </div>
     </div>
   );

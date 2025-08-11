@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useSimpleAuth } from '../utils/simpleAuth';
+import Layout from '../components/Layout';
 
 export default function MaintenanceManagement() {
   const { user } = useSimpleAuth();
@@ -8,6 +9,7 @@ export default function MaintenanceManagement() {
   const [maintenanceBills, setMaintenanceBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('cashflows');
+  const [renewalAlerts, setRenewalAlerts] = useState([]);
 
   useEffect(() => {
     if (user) {
@@ -49,6 +51,11 @@ export default function MaintenanceManagement() {
 
       if (billsError) throw billsError;
       setMaintenanceBills(bills || []);
+      
+      // 檢查續約提醒
+      if (cashflows && cashflows.length > 0) {
+        checkRenewalAlerts(cashflows);
+      }
     } catch (error) {
       console.error('獲取維護費資料失敗:', error);
       alert('載入資料失敗: ' + error.message);
@@ -196,17 +203,79 @@ export default function MaintenanceManagement() {
   };
 
   if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>;
+    return (
+      <Layout>
+        <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
+      </Layout>
+    );
   }
 
   return (
-    <div style={{ padding: '2rem' }}>
+    <Layout>
+      <div style={{ padding: '2rem' }}>
       <div style={{ marginBottom: '2rem' }}>
         <h1>維護費管理</h1>
         <p style={{ color: '#666', marginTop: '0.5rem' }}>
           管理專案的維護合約和月費收款
         </p>
       </div>
+
+      {/* 續約提醒區塊 */}
+      {renewalAlerts.length > 0 && (
+        <div style={{
+          backgroundColor: '#fff3cd',
+          border: '1px solid #ffeaa7',
+          borderRadius: '8px',
+          padding: '1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <h3 style={{ 
+            margin: '0 0 1rem 0', 
+            color: '#856404',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            🔔 續約提醒 ({renewalAlerts.length} 項)
+          </h3>
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            {renewalAlerts.map(alert => (
+              <div key={alert.id} style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '1rem',
+                backgroundColor: 'white',
+                borderRadius: '6px',
+                border: `2px solid ${
+                  alert.level === 'expired' ? '#e74c3c' : 
+                  alert.level === 'critical' ? '#e67e22' : '#f39c12'
+                }`
+              }}>
+                <div>
+                  <strong style={{ color: '#2c3e50' }}>
+                    {alert.project_name} ({alert.client_name})
+                  </strong>
+                  <div style={{ 
+                    fontSize: '0.9rem', 
+                    color: alert.level === 'expired' ? '#e74c3c' : '#666',
+                    marginTop: '0.25rem'
+                  }}>
+                    {alert.message}
+                  </div>
+                </div>
+                <div style={{ 
+                  fontSize: '0.8rem', 
+                  color: '#666',
+                  textAlign: 'right'
+                }}>
+                  合約到期: {alert.end_date}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 統計卡片 */}
       <div style={{
@@ -258,23 +327,55 @@ export default function MaintenanceManagement() {
         </div>
       </div>
 
-      {/* 操作按鈕 */}
-      <div style={{ marginBottom: '2rem' }}>
-        <button
-          onClick={generateNextBills}
-          style={{
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#27ae60',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '1rem',
-            marginRight: '1rem'
-          }}
-        >
-          生成本月帳單
-        </button>
+      {/* 操作按鈕和說明 */}
+      <div style={{ 
+        backgroundColor: '#e8f5e8',
+        border: '1px solid #27ae60',
+        borderRadius: '8px',
+        padding: '1.5rem',
+        marginBottom: '2rem'
+      }}>
+        <h4 style={{ margin: '0 0 1rem 0', color: '#27ae60' }}>💡 如何使用維護管理系統</h4>
+        <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1.5rem', fontSize: '0.9rem', color: '#2c3e50' }}>
+          <div>1. 📋 在各專案詳情頁填寫「保固與維護資訊」</div>
+          <div>2. 🔄 系統會自動生成維護合約和現金流預測</div>
+          <div>3. 📅 每月點擊「生成本月帳單」建立維護費帳單</div>
+          <div>4. 💰 收到款項後更新帳單狀態為「已付款」</div>
+          <div>5. 🔔 系統會在合約到期前 2 個月和 2 週自動提醒</div>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={generateNextBills}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#27ae60',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1rem',
+              fontWeight: 'bold'
+            }}
+          >
+            📅 生成本月帳單
+          </button>
+          
+          <button
+            onClick={fetchMaintenanceData}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#3498db',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            🔄 重新整理
+          </button>
+        </div>
       </div>
 
       {/* 分頁標籤 */}
@@ -456,6 +557,7 @@ export default function MaintenanceManagement() {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </Layout>
   );
 }
