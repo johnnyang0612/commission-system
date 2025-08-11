@@ -89,6 +89,13 @@ export default function Layout({ children }) {
             }}>
               付款記錄
             </Link>
+            <Link href="/maintenance" style={{
+              color: isActive('/maintenance') ? '#3498db' : 'white',
+              textDecoration: 'none',
+              fontWeight: isActive('/maintenance') ? 'bold' : 'normal'
+            }}>
+              維護管理
+            </Link>
             {user?.role === 'admin' && (
               <Link href="/admin/users" style={{
                 color: isActive('/admin/users') ? '#3498db' : 'white',

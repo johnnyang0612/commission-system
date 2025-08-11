@@ -552,20 +552,80 @@ export default function ProjectDetail() {
     e.preventDefault();
     if (!supabase) return;
     
-    const { error } = await supabase
-      .from('projects')
-      .update({
-        ...maintenanceForm,
-        maintenance_fee: maintenanceForm.maintenance_fee ? parseFloat(maintenanceForm.maintenance_fee) : null
-      })
-      .eq('id', id);
-    
-    if (error) {
-      console.error(error);
-      alert('更新失敗');
-    } else {
+    try {
+      // 更新專案維護資訊
+      const { error: updateError } = await supabase
+        .from('projects')
+        .update({
+          ...maintenanceForm,
+          maintenance_fee: maintenanceForm.maintenance_fee ? parseFloat(maintenanceForm.maintenance_fee) : null
+        })
+        .eq('id', id);
+      
+      if (updateError) {
+        throw updateError;
+      }
+      
+      // 如果有維護費且有維護開始日期，創建維護費現金流
+      if (maintenanceForm.maintenance_fee && maintenanceForm.maintenance_start_date) {
+        await createMaintenanceCashflow();
+      }
+      
       alert('維護資訊更新成功');
       fetchProject();
+    } catch (error) {
+      console.error('更新維護資訊失敗:', error);
+      alert('更新失敗: ' + error.message);
+    }
+  }
+  
+  async function createMaintenanceCashflow() {
+    if (!supabase || !maintenanceForm.maintenance_fee || !maintenanceForm.maintenance_start_date) return;
+    
+    try {
+      // 檢查是否已經存在維護費現金流
+      const { data: existingCashflow } = await supabase
+        .from('maintenance_cashflow')
+        .select('id')
+        .eq('project_id', id)
+        .eq('status', 'active')
+        .single();
+      
+      if (existingCashflow) {
+        // 更新現有的維護費現金流
+        const { error: updateError } = await supabase
+          .from('maintenance_cashflow')
+          .update({
+            maintenance_fee: parseFloat(maintenanceForm.maintenance_fee),
+            start_date: maintenanceForm.maintenance_start_date,
+            next_billing_date: maintenanceForm.maintenance_billing_date || maintenanceForm.maintenance_start_date,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingCashflow.id);
+        
+        if (updateError) throw updateError;
+        console.log('更新維護費現金流成功');
+      } else {
+        // 創建新的維護費現金流
+        const { error: insertError } = await supabase
+          .from('maintenance_cashflow')
+          .insert({
+            project_id: id,
+            maintenance_fee: parseFloat(maintenanceForm.maintenance_fee),
+            billing_cycle: 'monthly',
+            start_date: maintenanceForm.maintenance_start_date,
+            next_billing_date: maintenanceForm.maintenance_billing_date || maintenanceForm.maintenance_start_date,
+            status: 'active',
+            auto_generate_bills: true,
+            notes: `由專案 ${project.project_name} 的維護合約自動創建`
+          });
+        
+        if (insertError) throw insertError;
+        console.log('創建維護費現金流成功');
+      }
+    } catch (error) {
+      console.error('處理維護費現金流失敗:', error);
+      // 不中斷主流程，只記錄錯誤
     }
   }
 
