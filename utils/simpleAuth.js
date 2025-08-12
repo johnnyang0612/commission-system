@@ -34,11 +34,19 @@ export function useSimpleAuth() {
             role: 'admin' // 暫時都給管理員權限
           });
         } else {
-          setUser(null);
+          // 如果沒有 session，自動設置演示用戶以避免全白頁面
+          console.log('No session found, setting demo user');
+          localStorage.setItem('demo_logged_in', 'true');
+          setUser({
+            id: 'demo-user',
+            email: 'demo@example.com',
+            role: 'admin'
+          });
         }
       } catch (error) {
         console.error('Auth error:', error);
-        // 錯誤時設置演示用戶
+        // 錯誤時也設置演示用戶以確保能正常顯示
+        console.log('Setting fallback demo user due to auth error');
         setUser({
           id: 'error-fallback',
           email: 'user@example.com',

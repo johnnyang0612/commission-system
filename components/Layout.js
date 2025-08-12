@@ -31,9 +31,18 @@ export default function Layout({ children }) {
     );
   }
   
-  // 如果沒有登入，不顯示 Layout
+  // 如果沒有登入，顯示載入畫面（simpleAuth 會自動設置用戶）
   if (!user && router.pathname !== '/login') {
-    return null;
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh' 
+      }}>
+        <div>正在載入用戶資訊...</div>
+      </div>
+    );
   }
   
   return (
