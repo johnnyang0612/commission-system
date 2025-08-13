@@ -26,6 +26,7 @@ export function useSimpleAuth() {
             .eq('email', session.user.email)
             .single();
           
+          console.log('checkUser: Processing user data:', userData);
           if (userData) {
             // 如果是預先創建的用戶（ID 以 pre_ 開頭），更新 ID 為真實的 auth ID
             if (userData.id.startsWith('pre_')) {
@@ -39,6 +40,7 @@ export function useSimpleAuth() {
               }
             }
             
+            console.log('checkUser: Setting user data');
             setUser({
               id: session.user.id,
               email: session.user.email,
@@ -47,6 +49,7 @@ export function useSimpleAuth() {
             });
           } else {
             // 如果 users 表中沒有記錄，創建一個
+            console.log('checkUser: Creating new user record');
             const { data: newUser, error: insertError } = await supabase
               .from('users')
               .insert([{
@@ -59,6 +62,7 @@ export function useSimpleAuth() {
               .single();
             
             if (newUser) {
+              console.log('checkUser: New user created, setting user data');
               setUser({
                 id: session.user.id,
                 email: session.user.email,
@@ -67,6 +71,7 @@ export function useSimpleAuth() {
               });
             } else {
               console.error('Error creating user record:', insertError);
+              console.log('checkUser: Using fallback user data');
               setUser({
                 id: session.user.id,
                 email: session.user.email,
@@ -94,13 +99,16 @@ export function useSimpleAuth() {
       console.log('Auth state changed:', event, session?.user?.email);
       
       if (session?.user) {
-        
-        // 從 users 表獲取用戶資料
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', session.user.email)
-          .single();
+        try {
+          // 從 users 表獲取用戶資料
+          console.log('Auth state change: Fetching user data for:', session.user.email);
+          const { data: userData, error: fetchError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', session.user.email)
+            .single();
+          
+          console.log('Auth state change: User data result:', { userData, fetchError });
         
         if (userData) {
           // 如果是預先創建的用戶（ID 以 pre_ 開頭），更新 ID 為真實的 auth ID
@@ -139,6 +147,18 @@ export function useSimpleAuth() {
             role: 'sales'
           });
           console.log('Auth state change: Setting loading to false after new user created');
+          setLoading(false);
+        }
+      } catch (error) {
+          console.error('Auth state change error:', error);
+          // 即使出錯也要設置基本用戶資料和清除載入狀態
+          setUser({
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+            role: 'sales'
+          });
+          console.log('Auth state change: Setting loading to false after error');
           setLoading(false);
         }
       } else if (event === 'SIGNED_OUT') {
