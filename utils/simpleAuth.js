@@ -116,6 +116,7 @@ export function useSimpleAuth() {
             name: userData.name,
             role: userData.role || 'sales'
           });
+          setLoading(false);
         } else {
           // 創建新用戶記錄
           await supabase
@@ -133,9 +134,11 @@ export function useSimpleAuth() {
             name: session.user.email.split('@')[0],
             role: 'sales'
           });
+          setLoading(false);
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        setLoading(false);
       }
     });
 
