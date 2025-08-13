@@ -148,16 +148,25 @@ export function useSimpleAuth() {
             } else {
               // 在數據庫中創建新用戶記錄，但不阻塞 UI
               console.log('Auth state change: Creating new user record in background');
-              await supabase
+              const { data: newUserData, error: insertError } = await supabase
                 .from('users')
                 .insert([{
                   id: session.user.id,
                   email: session.user.email,
                   name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
                   role: 'sales'
-                }]);
+                }])
+                .select()
+                .single();
               
-              // 更新為完整資料
+              if (insertError) {
+                console.error('Failed to create user record:', insertError);
+                console.log('User will use fallback data until manual creation');
+              } else {
+                console.log('✅ Successfully created new user record:', newUserData);
+              }
+              
+              // 更新為完整資料（無論創建是否成功）
               setUser({
                 id: session.user.id,
                 email: session.user.email,
