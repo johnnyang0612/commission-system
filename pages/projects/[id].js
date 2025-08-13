@@ -909,6 +909,87 @@ export default function ProjectDetail() {
     }
   }
 
+  async function regenerateProjectCode() {
+    if (!editFormData.tax_id || !editFormData.sign_date) {
+      alert('請先填寫統一編號和簽約日期才能生成專案編號');
+      return;
+    }
+
+    const confirmed = confirm(
+      `確定要重新生成專案編號嗎？\n\n` +
+      `目前編號：${project.project_code}\n` +
+      `新編號將為：${editFormData.tax_id}-${editFormData.sign_date.replace(/-/g, '')}\n\n` +
+      `此操作會檢查編號是否重複並更新資料庫。`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const signDateFormatted = editFormData.sign_date.replace(/-/g, '');
+      const newProjectCode = editFormData.tax_id + '-' + signDateFormatted;
+
+      // 檢查新的專案編號是否已存在
+      const { data: existingProject, error: checkError } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('project_code', newProjectCode)
+        .neq('id', id)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('檢查專案編號錯誤:', checkError);
+        alert('檢查專案編號時發生錯誤: ' + checkError.message);
+        return;
+      }
+
+      if (existingProject) {
+        alert(`專案編號 "${newProjectCode}" 已存在，請檢查統編和簽約日期。`);
+        return;
+      }
+
+      // 更新專案編號
+      const { error: updateError } = await supabase
+        .from('projects')
+        .update({ project_code: newProjectCode })
+        .eq('id', id);
+
+      if (updateError) {
+        console.error('更新專案編號失敗:', updateError);
+        alert('更新專案編號失敗: ' + updateError.message);
+        return;
+      }
+
+      // 記錄修改歷史
+      try {
+        const { error: logError } = await supabase
+          .from('project_change_logs')
+          .insert([{
+            project_id: id,
+            field_name: 'project_code',
+            old_value: project.project_code || '',
+            new_value: newProjectCode,
+            changed_by: 'current_user',
+            change_date: new Date().toISOString()
+          }]);
+
+        if (logError) {
+          console.error('記錄變更日誌失敗 (非關鍵錯誤):', logError);
+        }
+      } catch (logError) {
+        console.error('記錄變更日誌發生錯誤 (非關鍵錯誤):', logError);
+      }
+
+      alert(`專案編號更新成功！\n\n舊編號：${project.project_code}\n新編號：${newProjectCode}`);
+      
+      // 重新載入專案資料
+      await fetchProject();
+      
+    } catch (error) {
+      console.error('重新生成專案編號失敗:', error);
+      alert('重新生成專案編號失敗: ' + error.message);
+    }
+  }
+
   async function updateMaintenanceInfo(e) {
     e.preventDefault();
     if (!supabase) return;
@@ -1419,6 +1500,56 @@ export default function ProjectDetail() {
             </div>
 
             <h5 style={{ marginBottom: '1rem', color: '#2c3e50' }}>專案資訊</h5>
+            
+            {/* 專案編號顯示和重新生成按鈕 */}
+            <div style={{ 
+              marginBottom: '1.5rem', 
+              padding: '1rem', 
+              backgroundColor: '#f8f9fa', 
+              borderRadius: '4px', 
+              border: '1px solid #dee2e6' 
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 'bold' }}>
+                    目前專案編號
+                  </label>
+                  <div style={{ 
+                    fontSize: '1.1rem', 
+                    fontWeight: 'bold', 
+                    color: '#2c3e50',
+                    fontFamily: 'monospace'
+                  }}>
+                    {project?.project_code || '未設定'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={regenerateProjectCode}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#f39c12',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: 'bold'
+                  }}
+                  title="根據統編和簽約日期重新生成專案編號"
+                >
+                  🔄 重新生成專案編號
+                </button>
+              </div>
+              <div style={{ 
+                marginTop: '0.5rem', 
+                fontSize: '0.8rem', 
+                color: '#6c757d' 
+              }}>
+                專案編號格式：統編-簽約日期 (如: 12345678-20240315)
+              </div>
+            </div>
+            
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>簽約日期 *</label>
@@ -2620,13 +2751,43 @@ export default function ProjectDetail() {
       )}
 
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '1.5rem' }}>保固與維護資訊</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h3 style={{ margin: 0 }}>保固與維護資訊</h3>
+          {(project?.warranty_period || project?.maintenance_fee || project?.actual_completion_date || project?.maintenance_start_date || project?.maintenance_billing_date) ? (
+            <span style={{
+              padding: '0.25rem 0.75rem',
+              backgroundColor: '#e8f5e9',
+              color: '#27ae60',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: 'bold'
+            }}>
+              ✅ 已設定
+            </span>
+          ) : (
+            <span style={{
+              padding: '0.25rem 0.75rem',
+              backgroundColor: '#fff3cd',
+              color: '#f39c12',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: 'bold'
+            }}>
+              ⚠️ 未設定
+            </span>
+          )}
+        </div>
         
         <form onSubmit={updateMaintenanceInfo}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
                 保固期間（月）
+                {project?.warranty_period && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'normal', color: '#666', marginLeft: '0.5rem' }}>
+                    （目前：{project.warranty_period}月）
+                  </span>
+                )}
               </label>
               <input
                 type="number"
@@ -2644,6 +2805,11 @@ export default function ProjectDetail() {
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
                 實際結案日期
+                {project?.actual_completion_date && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'normal', color: '#666', marginLeft: '0.5rem' }}>
+                    （目前：{new Date(project.actual_completion_date).toLocaleDateString('zh-TW')}）
+                  </span>
+                )}
               </label>
               <input
                 type="date"
@@ -2661,6 +2827,11 @@ export default function ProjectDetail() {
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
                 維護起算日
+                {project?.maintenance_start_date && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'normal', color: '#666', marginLeft: '0.5rem' }}>
+                    （目前：{new Date(project.maintenance_start_date).toLocaleDateString('zh-TW')}）
+                  </span>
+                )}
               </label>
               <input
                 type="date"
@@ -2678,6 +2849,11 @@ export default function ProjectDetail() {
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
                 維護費起收日
+                {project?.maintenance_billing_date && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'normal', color: '#666', marginLeft: '0.5rem' }}>
+                    （目前：{new Date(project.maintenance_billing_date).toLocaleDateString('zh-TW')}）
+                  </span>
+                )}
               </label>
               <input
                 type="date"
@@ -2695,6 +2871,11 @@ export default function ProjectDetail() {
             <div>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
                 維護費金額（月）
+                {project?.maintenance_fee && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'normal', color: '#666', marginLeft: '0.5rem' }}>
+                    （目前：NT$ {project.maintenance_fee.toLocaleString()}）
+                  </span>
+                )}
               </label>
               <input
                 type="number"
@@ -2723,7 +2904,7 @@ export default function ProjectDetail() {
               fontSize: '1rem'
             }}
           >
-            更新維護資訊
+            {(project?.warranty_period || project?.maintenance_fee || project?.actual_completion_date || project?.maintenance_start_date || project?.maintenance_billing_date) ? '更新維護資訊' : '設定維護資訊'}
           </button>
         </form>
       </div>
