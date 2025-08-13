@@ -11,9 +11,11 @@ export function useSimpleAuth() {
   useEffect(() => {
     // 快速檢查用戶狀態
     const checkUser = async () => {
+      console.log('checkUser: Starting authentication check');
       try {
         // 檢查 Supabase session
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('checkUser: Session found:', !!session?.user, session?.user?.email);
         
         if (session?.user) {
           
@@ -80,6 +82,7 @@ export function useSimpleAuth() {
         console.error('Auth error:', error);
         setUser(null);
       } finally {
+        console.log('checkUser: Setting loading to false');
         setLoading(false);
       }
     };
@@ -116,6 +119,7 @@ export function useSimpleAuth() {
             name: userData.name,
             role: userData.role || 'sales'
           });
+          console.log('Auth state change: Setting loading to false after user data set');
           setLoading(false);
         } else {
           // 創建新用戶記錄
@@ -134,6 +138,7 @@ export function useSimpleAuth() {
             name: session.user.email.split('@')[0],
             role: 'sales'
           });
+          console.log('Auth state change: Setting loading to false after new user created');
           setLoading(false);
         }
       } else if (event === 'SIGNED_OUT') {
