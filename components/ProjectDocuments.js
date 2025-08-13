@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import FileUpload from './FileUpload';
 import DocumentVersions from './DocumentVersions';
-import { STORAGE_BUCKETS, FOLDER_STRUCTURE } from '../utils/fileUpload';
+import { STORAGE_BUCKETS, FOLDER_STRUCTURE, softDeleteFile } from '../utils/fileUpload';
 
 const DOCUMENT_TYPES = {
   proposal: { name: '提案書', color: '#3498db', icon: '📋' },
@@ -179,6 +179,51 @@ export default function ProjectDocuments({ projectId, userRole }) {
     } catch (error) {
       console.error('更新文件狀態失敗:', error);
       alert('更新文件狀態失敗: ' + error.message);
+    }
+  }
+
+  async function handleDeleteDocument(doc) {
+    const confirmed = confirm(`確定要刪除文件「${doc.document_name}」嗎？\n\n文件將會被移除但保留230天，之後會永久刪除。`);
+    if (!confirmed) return;
+
+    try {
+      // 軟刪除 Storage 中的檔案
+      const metadata = {
+        fileName: doc.file_name,
+        fileSize: doc.file_size,
+        fileType: doc.file_type,
+        deletedBy: 'current_user', // 實際應用中應該是當前用戶
+        projectId: projectId,
+        documentId: doc.id,
+        reason: '用戶手動刪除'
+      };
+
+      const result = await softDeleteFile(doc.bucket_name || STORAGE_BUCKETS.DOCUMENTS, doc.file_path, metadata);
+      
+      if (result.success) {
+        // 標記數據庫中的文件記錄為已刪除
+        const { error: dbError } = await supabase
+          .from('project_documents')
+          .update({ 
+            document_status: 'archived',
+            deleted_at: new Date().toISOString()
+          })
+          .eq('id', doc.id);
+
+        if (dbError) {
+          console.error('標記文件為已刪除失敗:', dbError);
+          alert('刪除失敗: ' + dbError.message);
+          return;
+        }
+
+        alert(result.message || '檔案已刪除，將在230天後永久清除');
+        fetchDocuments(); // 重新載入文件列表
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('刪除失敗:', error);
+      alert('刪除失敗: ' + error.message);
     }
   }
 
@@ -716,6 +761,23 @@ export default function ProjectDocuments({ projectId, userRole }) {
                         }}
                       >
                         📚 版本
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteDocument(doc)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#e74c3c',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          flex: 1
+                        }}
+                        title={`刪除文件 ${doc.document_name}`}
+                      >
+                        🗑️ 刪除
                       </button>
 
                       <select
