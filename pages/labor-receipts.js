@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getLaborReceipts } from '../utils/laborReceiptGenerator';
 import { getCurrentUser, getCurrentUserRole } from '../utils/permissions';
+import { generateLaborReceiptPDF, downloadLaborReceiptCSV } from '../utils/laborReceiptPDF';
 
 export default function LaborReceipts() {
   const [receipts, setReceipts] = useState([]);
@@ -64,6 +65,20 @@ export default function LaborReceipts() {
     <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h2 style={{ margin: 0 }}>勞務報酬單管理</h2>
+        <button
+          onClick={() => downloadLaborReceiptCSV(receipts)}
+          style={{
+            padding: '0.75rem 1.5rem',
+            backgroundColor: '#27ae60',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '1rem'
+          }}
+        >
+          📥 匯出全部 (CSV)
+        </button>
       </div>
 
       {/* 篩選區域 */}
@@ -192,6 +207,7 @@ export default function LaborReceipts() {
               <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>健保費</th>
               <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>實發金額</th>
               <th style={{ padding: '0.75rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>狀態</th>
+              <th style={{ padding: '0.75rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -233,6 +249,24 @@ export default function LaborReceipts() {
                   }}>
                     {getStatusLabel(receipt.status)}
                   </span>
+                </td>
+                <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                  <button
+                    onClick={() => generateLaborReceiptPDF(receipt)}
+                    style={{
+                      padding: '0.4rem 0.8rem',
+                      backgroundColor: '#3498db',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      marginRight: '0.5rem'
+                    }}
+                    title="列印勞務報酬單"
+                  >
+                    🖨️ 列印
+                  </button>
                 </td>
               </tr>
             ))}
