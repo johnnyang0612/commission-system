@@ -12,28 +12,22 @@ DROP POLICY IF EXISTS "Users can update own profile" ON users;
 DROP POLICY IF EXISTS "Enable read access for all users" ON users;
 DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON users;
 
--- 為管理員創建完全訪問政策
+-- 為特定管理員 email 創建完全訪問政策（避免循環引用）
 CREATE POLICY "Admin full access" ON users
 FOR ALL
 TO authenticated
 USING (
-  auth.uid() IN (
-    SELECT id FROM users 
-    WHERE email IN (
-      'johnny.yang@brightstream.com.tw',
-      'johnnyang0612@gmail.com',
-      'johnny19940612@gmail.com'
-    ) OR role = 'admin'
+  auth.email() IN (
+    'johnny.yang@brightstream.com.tw',
+    'johnnyang0612@gmail.com',
+    'johnny19940612@gmail.com'
   )
 )
 WITH CHECK (
-  auth.uid() IN (
-    SELECT id FROM users 
-    WHERE email IN (
-      'johnny.yang@brightstream.com.tw',
-      'johnnyang0612@gmail.com', 
-      'johnny19940612@gmail.com'
-    ) OR role = 'admin'
+  auth.email() IN (
+    'johnny.yang@brightstream.com.tw',
+    'johnnyang0612@gmail.com', 
+    'johnny19940612@gmail.com'
   )
 );
 
