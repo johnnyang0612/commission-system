@@ -188,7 +188,7 @@ export default function UserDetail() {
   const getRoleLabel = (role) => {
     const labels = {
       'admin': '管理員',
-      'accountant': '財務',
+      'finance': '財務',
       'leader': '主管',
       'sales': '業務'
     };
@@ -284,7 +284,7 @@ export default function UserDetail() {
                 >
                   <option value="sales">業務</option>
                   <option value="leader">主管</option>
-                  <option value="accountant">財務</option>
+                  <option value="finance">財務</option>
                   <option value="admin">管理員</option>
                 </select>
               </div>

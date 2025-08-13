@@ -60,7 +60,7 @@ export default function Users() {
   const getRoleLabel = (role) => {
     const labels = {
       'admin': '管理員',
-      'accountant': '財務',
+      'finance': '財務',
       'leader': '主管',
       'sales': '業務'
     };
@@ -70,9 +70,9 @@ export default function Users() {
   const getRoleColor = (role) => {
     const colors = {
       'admin': '#e74c3c',
-      'accountant': '#f39c12',
-      'leader': '#9b59b6',
-      'sales': '#3498db'
+      'finance': '#f39c12',
+      'leader': '#3498db',
+      'sales': '#27ae60'
     };
     return colors[role] || '#95a5a6';
   };
@@ -156,7 +156,7 @@ export default function Users() {
                 >
                   <option value="sales">業務</option>
                   <option value="leader">主管</option>
-                  <option value="accountant">財務</option>
+                  <option value="finance">財務</option>
                   <option value="admin">管理員</option>
                 </select>
               </div>
