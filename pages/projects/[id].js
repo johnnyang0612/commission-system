@@ -2157,6 +2157,8 @@ export default function ProjectDetail() {
                 currentFiles={costForm.uploaded_files}
                 maxFiles={50}
                 label="上傳發票/收據"
+                projectId={id}
+                userId={authUser?.id}
               />
             </div>
             

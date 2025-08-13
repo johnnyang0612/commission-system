@@ -184,7 +184,10 @@ export default function FileUpload({
                     color: '#2c3e50',
                     marginBottom: '0.25rem'
                   }}>
-                    {file.originalName || file.fileName}
+                    {file.customName && file.customName !== file.originalName 
+                      ? `${file.customName} (${file.originalName || file.fileName})`
+                      : (file.originalName || file.fileName)
+                    }
                   </div>
                   <div style={{ 
                     fontSize: '0.8rem', 
@@ -194,7 +197,7 @@ export default function FileUpload({
                   }}>
                     <span>{getFileTypeText(file.fileType)}</span>
                     {file.fileSize && <span>{formatFileSize(file.fileSize)}</span>}
-                    <span>上傳時間: {new Date().toLocaleString('zh-TW')}</span>
+                    <span>上傳時間: {file.uploadedAt ? new Date(file.uploadedAt).toLocaleString('zh-TW') : '剛才'}</span>
                   </div>
                 </div>
                 

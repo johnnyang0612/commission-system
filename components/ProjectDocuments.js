@@ -477,6 +477,8 @@ export default function ProjectDocuments({ projectId, userRole }) {
             currentFiles={documentForm.uploaded_files}
             maxFiles={50}
             label="上傳文件"
+            projectId={projectId}
+            userId={null}
           />
 
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2rem' }}>
