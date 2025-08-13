@@ -77,6 +77,8 @@ export default function Commissions() {
           total_paid_amount: 0,
           payout_count: 0,
           remaining_amount: 0,
+          paid_percentage: 0,
+          created_at: project.created_at || new Date().toISOString(),
           project: project,
           payouts: []
         };
@@ -92,9 +94,11 @@ export default function Commissions() {
       });
     });
     
-    // 計算剩餘金額
+    // 計算剩餘金額和撥款百分比
     Object.values(commissionsByProject).forEach(commission => {
       commission.remaining_amount = commission.amount - commission.total_paid_amount;
+      commission.paid_percentage = commission.amount > 0 ? 
+        (commission.total_paid_amount / commission.amount * 100) : 0;
     });
     
     setCommissions(Object.values(commissionsByProject));

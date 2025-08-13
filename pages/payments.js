@@ -29,8 +29,9 @@ export default function Payments() {
   async function fetchPayments() {
     if (!supabase) return;
     
-    let query = supabase
-      .from('payments')
+    // 從 project_installments 獲取實際的付款記錄
+    const { data: installmentData, error: installmentError } = await supabase
+      .from('project_installments')
       .select(`
         *,
         project:project_id (
@@ -41,27 +42,29 @@ export default function Payments() {
           assigned_to,
           manager_id
         )
-      `);
+      `)
+      .eq('status', 'paid')
+      .not('actual_amount', 'is', null)
+      .gt('actual_amount', 0)
+      .order('payment_date', { ascending: false });
     
-    // Apply role-based filtering
-    const user = getCurrentUser();
-    const role = getCurrentUserRole();
-    
-    // 暫時移除角色過濾，確保資料可以正常載入
-    // 在實際部署時需要根據真實的用戶資料進行過濾
-    if (role === 'sales') {
-      // 當有真實用戶系統時，可以啟用這個過濾
-      // query = query.eq('project.assigned_to', user.id);
-    } else if (role === 'leader') {
-      // 當有真實用戶階層資料時，可以啟用這個過濾
-      // query = query.or(`project.assigned_to.eq.${user.id},project.manager_id.eq.${user.id}`);
+    if (installmentError) {
+      console.error('獲取付款記錄失敗:', installmentError);
+      return;
     }
-    // Admin and Finance can see all payments
     
-    const { data, error } = await query.order('payment_date', { ascending: false });
+    // 將 installment 資料轉換成 payment 格式
+    const paymentRecords = installmentData?.map(installment => ({
+      id: installment.id,
+      project_id: installment.project_id,
+      payment_date: installment.payment_date,
+      amount: installment.actual_amount || installment.amount,
+      method: 'transfer', // 預設轉帳，可以後續加入付款方式欄位
+      description: `第 ${installment.installment_number} 期付款`,
+      project: installment.project
+    })) || [];
     
-    if (error) console.error(error);
-    else setPayments(data || []);
+    setPayments(paymentRecords);
   }
 
   async function fetchProjects() {
@@ -384,7 +387,7 @@ export default function Payments() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                     <span>{progress.percentage}%</span>
-                    <span>NT$ {progress.totalPaid.toLocaleString()} / {project.amount?.toLocaleString()}</span>
+                    <span>NT$ {progress.totalPaid.toLocaleString()} / {project.project_amount?.toLocaleString()}</span>
                   </div>
                 </div>
               );
