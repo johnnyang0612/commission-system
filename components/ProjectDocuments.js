@@ -61,9 +61,14 @@ export default function ProjectDocuments({ projectId, userRole }) {
 
       // 根據檢視模式過濾
       if (viewMode === 'current') {
-        query = query.eq('is_current_version', true);
+        query = query.eq('is_current_version', true).is('deleted_at', null);
       } else if (viewMode === 'archived') {
-        query = query.eq('document_status', 'archived');
+        query = query.eq('document_status', 'archived').is('deleted_at', null);
+      } else if (viewMode === 'deleted') {
+        query = query.not('deleted_at', 'is', null);
+      } else {
+        // 默認情況下不顯示已軟刪除的文件
+        query = query.is('deleted_at', null);
       }
 
       // 排序
@@ -334,6 +339,7 @@ export default function ProjectDocuments({ projectId, userRole }) {
           <option value="all">所有文件</option>
           <option value="current">最新版本</option>
           <option value="archived">已歸檔</option>
+          <option value="deleted">已刪除</option>
         </select>
 
         <select
@@ -598,12 +604,13 @@ export default function ProjectDocuments({ projectId, userRole }) {
               }}>
                 {docs.map(doc => (
                   <div key={doc.id} style={{
-                    backgroundColor: 'white',
+                    backgroundColor: doc.deleted_at ? '#f8f9fa' : 'white',
                     padding: '1.5rem',
                     borderRadius: '8px',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    border: doc.is_important ? '2px solid #f39c12' : '1px solid #dee2e6',
-                    position: 'relative'
+                    border: doc.deleted_at ? '2px solid #e74c3c' : (doc.is_important ? '2px solid #f39c12' : '1px solid #dee2e6'),
+                    position: 'relative',
+                    opacity: doc.deleted_at ? 0.8 : 1
                   }}>
                     {/* 重要文件標記 */}
                     {doc.is_important && (
@@ -636,6 +643,23 @@ export default function ProjectDocuments({ projectId, userRole }) {
                         fontWeight: 'bold'
                       }}>
                         🔒 機密
+                      </div>
+                    )}
+
+                    {/* 已刪除文件標記 */}
+                    {doc.deleted_at && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '0.5rem',
+                        left: '0.5rem',
+                        backgroundColor: '#dc3545',
+                        color: 'white',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '12px',
+                        fontSize: '0.7rem',
+                        fontWeight: 'bold'
+                      }}>
+                        🗑️ 已刪除
                       </div>
                     )}
 
@@ -713,88 +737,120 @@ export default function ProjectDocuments({ projectId, userRole }) {
                       gap: '0.5rem', 
                       flexWrap: 'wrap' 
                     }}>
-                      <a
-                        href={doc.public_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          padding: '0.5rem 1rem',
-                          backgroundColor: '#3498db',
-                          color: 'white',
-                          textDecoration: 'none',
-                          borderRadius: '4px',
-                          fontSize: '0.8rem',
-                          textAlign: 'center',
-                          flex: 1
-                        }}
-                      >
-                        📖 開啟
-                      </a>
-                      
-                      <button
-                        onClick={() => createNewVersion(doc)}
-                        style={{
-                          padding: '0.5rem 1rem',
-                          backgroundColor: '#f39c12',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          flex: 1
-                        }}
-                      >
-                        📝 新版本
-                      </button>
+                      {doc.deleted_at ? (
+                        // 已刪除文件的操作按鈕
+                        <>
+                          <div style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#6c757d',
+                            color: 'white',
+                            borderRadius: '4px',
+                            fontSize: '0.8rem',
+                            textAlign: 'center',
+                            flex: 1
+                          }}>
+                            📖 檔案已刪除
+                          </div>
+                          
+                          <div style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            borderRadius: '4px',
+                            fontSize: '0.8rem',
+                            textAlign: 'center',
+                            flex: 1
+                          }}>
+                            📅 將於 {new Date(new Date(doc.deleted_at).getTime() + 230*24*60*60*1000).toLocaleDateString('zh-TW')} 永久刪除
+                          </div>
+                        </>
+                      ) : (
+                        // 正常文件的操作按鈕
+                        <>
+                          <a
+                            href={doc.public_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              padding: '0.5rem 1rem',
+                              backgroundColor: '#3498db',
+                              color: 'white',
+                              textDecoration: 'none',
+                              borderRadius: '4px',
+                              fontSize: '0.8rem',
+                              textAlign: 'center',
+                              flex: 1
+                            }}
+                          >
+                            📖 開啟
+                          </a>
+                          
+                          <button
+                            onClick={() => createNewVersion(doc)}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              backgroundColor: '#f39c12',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.8rem',
+                              flex: 1
+                            }}
+                          >
+                            📝 新版本
+                          </button>
 
-                      <button
-                        onClick={() => openVersionHistory(doc.id)}
-                        style={{
-                          padding: '0.5rem 1rem',
-                          backgroundColor: '#9b59b6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          flex: 1
-                        }}
-                      >
-                        📚 版本
-                      </button>
+                          <button
+                            onClick={() => openVersionHistory(doc.id)}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              backgroundColor: '#9b59b6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.8rem',
+                              flex: 1
+                            }}
+                          >
+                            📚 版本
+                          </button>
 
-                      <button
-                        onClick={() => handleDeleteDocument(doc)}
-                        style={{
-                          padding: '0.5rem 1rem',
-                          backgroundColor: '#e74c3c',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          flex: 1
-                        }}
-                        title={`刪除文件 ${doc.document_name}`}
-                      >
-                        🗑️ 刪除
-                      </button>
+                          <button
+                            onClick={() => handleDeleteDocument(doc)}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              backgroundColor: '#e74c3c',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.8rem',
+                              flex: 1
+                            }}
+                            title={`刪除文件 ${doc.document_name}`}
+                          >
+                            🗑️ 刪除
+                          </button>
 
-                      <select
-                        value={doc.document_status}
-                        onChange={(e) => updateDocumentStatus(doc.id, e.target.value)}
-                        style={{
-                          padding: '0.3rem',
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          fontSize: '0.7rem',
-                          flex: 1
-                        }}
-                      >
-                        {Object.entries(DOCUMENT_STATUS).map(([key, status]) => (
-                          <option key={key} value={key}>{status.name}</option>
-                        ))}
-                      </select>
+                          <select
+                            value={doc.document_status}
+                            onChange={(e) => updateDocumentStatus(doc.id, e.target.value)}
+                            style={{
+                              padding: '0.3rem',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '0.7rem',
+                              flex: 1
+                            }}
+                          >
+                            {Object.entries(DOCUMENT_STATUS).map(([key, status]) => (
+                              <option key={key} value={key}>{status.name}</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
