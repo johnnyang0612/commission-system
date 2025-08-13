@@ -235,14 +235,21 @@ export default function FileUpload({
                       padding: '0.25rem 0.5rem',
                       backgroundColor: disabled ? '#95a5a6' : '#e74c3c',
                       color: 'white',
-                      border: 'none',
+                      border: '2px solid #000',  // 添加明顯邊框便於調試
                       borderRadius: '3px',
                       cursor: disabled ? 'not-allowed' : 'pointer',
-                      fontSize: '0.8rem'
+                      fontSize: '0.8rem',
+                      minWidth: '50px'  // 確保按鈕有最小寬度
                     }}
+                    title={`刪除 ${file.originalName || file.fileName} (disabled: ${disabled})`}
                   >
-                    刪除
+                    刪除 {disabled ? '(禁用)' : ''}
                   </button>
+                  
+                  {/* 調試信息 */}
+                  <div style={{ fontSize: '0.7rem', color: 'red' }}>
+                    DEBUG: disabled={disabled?.toString()}, file={file.fileName}
+                  </div>
                 </div>
               </div>
             ))}
