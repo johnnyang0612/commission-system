@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { canViewFinancialData, getCurrentUser, getCurrentUserRole } from '../utils/permissions';
+import { autoPayoutCommissions } from '../utils/commissionPayoutManager';
 
 export default function Payments() {
   const [payments, setPayments] = useState([]);
@@ -110,7 +111,18 @@ export default function Payments() {
       });
       fetchPayments();
       
-      await checkAndTriggerCommissionPayout(formData.project_id);
+      // 自動執行分潤撥款（按收款比例）
+      const autoPayoutResult = await autoPayoutCommissions(
+        formData.project_id, 
+        parseFloat(formData.amount),
+        // 這裡應該是新插入的付款記錄ID，暫時用null
+        null
+      );
+      
+      if (autoPayoutResult.success && autoPayoutResult.payoutsProcessed > 0) {
+        alert(`收款登錄成功！\n\n已自動撥款 ${autoPayoutResult.payoutsProcessed} 筆分潤，並產生對應勞務報酬單。`);
+      }
+      
       await syncWithProjectInstallments(formData.project_id, parseFloat(formData.amount));
     }
   }

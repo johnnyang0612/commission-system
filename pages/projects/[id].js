@@ -148,7 +148,7 @@ export default function ProjectDetail() {
   async function fetchCommissions() {
     if (!supabase) return;
     const { data, error } = await supabase
-      .from('commissions')
+      .from('commission_summary')
       .select('*')
       .eq('project_id', id);
     
@@ -643,6 +643,12 @@ export default function ProjectDetail() {
     e.preventDefault();
     if (!supabase) return;
     
+    // 檢查專案ID是否有效
+    if (!id) {
+      alert('專案ID無效');
+      return;
+    }
+    
     console.log('Updating project with data:', editFormData);
     console.log('Users available:', users);
     
@@ -671,9 +677,51 @@ export default function ProjectDetail() {
       return;
     }
     
+    // 檢查是否需要重新生成專案編號（當統編或簽約日期變更時）
+    let updatedFormData = { ...editFormData };
+    const taxIdChanged = changes.some(change => change.field === 'tax_id');
+    const signDateChanged = changes.some(change => change.field === 'sign_date');
+    
+    if (taxIdChanged || signDateChanged) {
+      const signDateFormatted = editFormData.sign_date.replace(/-/g, '');
+      const newProjectCode = editFormData.tax_id + '-' + signDateFormatted;
+      
+      // 檢查新的專案編號是否已存在
+      const projectId = parseInt(id);
+      const { data: existingProject, error: checkError } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('project_code', newProjectCode)
+        .neq('id', projectId)
+        .single();
+      
+      // 如果查詢出錯但不是"找不到記錄"的錯誤，則報告錯誤
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Check project code error:', checkError);
+        alert('檢查專案編號時發生錯誤: ' + checkError.message);
+        return;
+      }
+      
+      if (existingProject) {
+        alert('專案編號 ' + newProjectCode + ' 已存在，請檢查統編和簽約日期。');
+        return;
+      }
+      
+      updatedFormData.project_code = newProjectCode;
+      
+      // 新增專案編號變更記錄
+      changes.push({
+        field: 'project_code',
+        old_value: project.project_code,
+        new_value: newProjectCode
+      });
+      
+      console.log('Project code regenerated:', newProjectCode);
+    }
+    
     const { error } = await supabase
       .from('projects')
-      .update(editFormData)
+      .update(updatedFormData)
       .eq('id', id);
     
     if (error) {
@@ -700,7 +748,13 @@ export default function ProjectDetail() {
         }
       }
       
-      alert('更新成功');
+      // 提供詳細的更新成功訊息
+      let successMessage = '更新成功';
+      if (taxIdChanged || signDateChanged) {
+        successMessage += '\n\n專案編號已自動更新為：' + updatedFormData.project_code;
+      }
+      
+      alert(successMessage);
       setShowEditForm(false);
       fetchProject();
     }
@@ -1700,20 +1754,18 @@ export default function ProjectDetail() {
         
         {/* 分潤總覽 - 只有 Admin 和 Finance 可以看到 */}
         {canViewFinancialData(userRole) && commissions.length > 0 && (() => {
-          // 計算已撥款和待撥款金額
-          const totalPaidCommission = installments
-            .filter(i => i.actual_commission && i.actual_commission > 0)
-            .reduce((sum, i) => sum + parseFloat(i.actual_commission), 0);
-          
-          const totalCommissionAmount = commissions[0].amount;
-          const remainingCommission = totalCommissionAmount - totalPaidCommission;
+          // 使用 commission_summary 視圖的資料
+          const commission = commissions[0];
+          const totalPaidCommission = commission.total_paid_amount || 0;
+          const totalCommissionAmount = commission.amount || 0;
+          const remainingCommission = commission.remaining_amount || 0;
           
           return (
             <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
               <h4 style={{ margin: '0 0 1rem 0', color: '#27ae60' }}>分潤資訊</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                 <div>
-                  <strong>分潤比例：</strong>{commissions[0].percentage.toFixed(1)}%
+                  <strong>分潤比例：</strong>{commission.percentage?.toFixed(1)}%
                 </div>
                 <div>
                   <strong>分潤總額：</strong>NT$ {totalCommissionAmount.toLocaleString()}

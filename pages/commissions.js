@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { canViewFinancialData, getCurrentUser, getCurrentUserRole } from '../utils/permissions';
+import { generateLaborReceipt, generatePendingLaborReceipts } from '../utils/laborReceiptGenerator';
+import { calculateAvailableCommissionPayout, executeCommissionPayout } from '../utils/commissionPayoutManager';
 
 export default function Commissions() {
   const [commissions, setCommissions] = useState([]);
@@ -24,12 +26,13 @@ export default function Commissions() {
     if (!supabase) return;
     
     let query = supabase
-      .from('commissions')
+      .from('commission_summary')
       .select(`
         *,
         project:project_id (
           client_name,
           project_code,
+          project_name,
           amount,
           type,
           assigned_to,
@@ -193,6 +196,7 @@ export default function Commissions() {
       'pending': '待撥款',
       'approved': '已核准',
       'paid': '已撥款',
+      'fully_paid': '已全額撥款',
       'cancelled': '已取消'
     };
     return labels[status] || status;
@@ -203,15 +207,116 @@ export default function Commissions() {
       'pending': '#f39c12',
       'approved': '#3498db',
       'paid': '#27ae60',
+      'fully_paid': '#2ecc71',
       'cancelled': '#e74c3c'
     };
     return colors[status] || '#95a5a6';
   };
 
+  async function handleCommissionPayout(commissionId) {
+    // 1. 先計算可撥款金額
+    const commission = commissions.find(c => c.id === commissionId);
+    if (!commission) {
+      alert('找不到分潤記錄');
+      return;
+    }
+
+    const availableInfo = await calculateAvailableCommissionPayout(commission.project_id);
+    if (!availableInfo.success) {
+      alert(`計算可撥款金額失敗: ${availableInfo.error}`);
+      return;
+    }
+
+    const commissionInfo = availableInfo.commissions.find(c => c.commission.id === commissionId);
+    if (!commissionInfo || !commissionInfo.canPayout) {
+      alert('目前沒有可撥款的金額');
+      return;
+    }
+
+    // 2. 讓使用者輸入撥款金額
+    const maxAmount = commissionInfo.availableCommissionAmount;
+    const inputAmount = prompt(
+      `可撥款金額：NT$ ${maxAmount.toLocaleString()}\n\n請輸入要撥款的金額：`, 
+      maxAmount.toString()
+    );
+
+    if (!inputAmount || isNaN(inputAmount) || parseFloat(inputAmount) <= 0) {
+      return;
+    }
+
+    const payoutAmount = parseFloat(inputAmount);
+    if (payoutAmount > maxAmount) {
+      alert(`撥款金額不能超過可撥款額度 NT$ ${maxAmount.toLocaleString()}`);
+      return;
+    }
+
+    const confirmed = confirm(`確定要撥款 NT$ ${payoutAmount.toLocaleString()} 嗎？\n\n撥款後將自動產生勞務報酬單。`);
+    if (!confirmed) return;
+
+    try {
+      // 3. 執行撥款
+      const result = await executeCommissionPayout(commissionId, payoutAmount, {
+        payoutDate: new Date().toISOString().split('T')[0],
+        notes: '手動撥款'
+      });
+
+      if (result.success) {
+        let message = `撥款成功！金額：NT$ ${payoutAmount.toLocaleString()}`;
+        
+        if (result.laborReceiptResult?.success) {
+          message += `\n\n已自動產生勞務報酬單：${result.laborReceiptResult.receiptNumber}`;
+          message += `\n實發金額：NT$ ${result.laborReceiptResult.netAmount.toLocaleString()}`;
+        }
+        
+        alert(message);
+        fetchCommissions();
+      } else {
+        alert(`撥款失敗: ${result.error}`);
+      }
+
+    } catch (error) {
+      console.error('撥款失敗:', error);
+      alert(`撥款失敗: ${error.message}`);
+    }
+  }
+
+  async function batchGenerateLaborReceipts() {
+    const confirmed = confirm('確定要批量產生所有未產生的勞務報酬單嗎？');
+    if (!confirmed) return;
+
+    try {
+      const result = await generatePendingLaborReceipts();
+      
+      if (result.success) {
+        alert(`批量產生完成！\n\n處理數量：${result.totalProcessed}\n成功：${result.successCount}\n失敗：${result.failCount}`);
+        fetchCommissions();
+      } else {
+        alert(`批量產生失敗：${result.error}`);
+      }
+    } catch (error) {
+      console.error('批量產生勞務報酬單失敗:', error);
+      alert(`操作失敗: ${error.message}`);
+    }
+  }
+
   return (
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <h2 style={{ margin: 0 }}>分潤管理</h2>
+          <button
+            onClick={batchGenerateLaborReceipts}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#9b59b6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            批量產生勞務報酬單
+          </button>
         </div>
 
         <div style={{ backgroundColor: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
@@ -292,6 +397,7 @@ export default function Commissions() {
                 <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>待撥款</th>
                 <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>撥款進度</th>
                 <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>建立時間</th>
+                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -323,10 +429,10 @@ export default function Commissions() {
                     NT$ {commission.amount?.toLocaleString()}
                   </td>
                   <td style={{ padding: '1rem', textAlign: 'right', color: '#27ae60', fontWeight: 'bold' }}>
-                    NT$ {(commission.total_paid || 0).toLocaleString()}
+                    NT$ {(commission.total_paid_amount || 0).toLocaleString()}
                   </td>
                   <td style={{ padding: '1rem', textAlign: 'right', color: '#e74c3c', fontWeight: 'bold' }}>
-                    NT$ {((commission.amount || 0) - (commission.total_paid || 0)).toLocaleString()}
+                    NT$ {(commission.remaining_amount || 0).toLocaleString()}
                   </td>
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
@@ -338,19 +444,61 @@ export default function Commissions() {
                         overflow: 'hidden'
                       }}>
                         <div style={{
-                          width: `${Math.min(((commission.total_paid || 0) / (commission.amount || 1)) * 100, 100)}%`,
+                          width: `${Math.min(commission.paid_percentage || 0, 100)}%`,
                           height: '100%',
-                          backgroundColor: ((commission.total_paid || 0) >= (commission.amount || 0)) ? '#27ae60' : '#3498db',
+                          backgroundColor: ((commission.total_paid_amount || 0) >= (commission.amount || 0)) ? '#27ae60' : '#3498db',
                           transition: 'width 0.3s ease'
                         }} />
                       </div>
                       <span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
-                        {(((commission.total_paid || 0) / (commission.amount || 1)) * 100).toFixed(1)}%
+                        {(commission.paid_percentage || 0).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td style={{ padding: '1rem' }}>
                     {new Date(commission.created_at).toLocaleDateString('zh-TW')}
+                  </td>
+                  <td style={{ padding: '1rem', textAlign: 'center' }}>
+                    {(commission.remaining_amount > 0) ? (
+                      <button
+                        onClick={() => handleCommissionPayout(commission.id)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#27ae60',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        💰 撥款
+                      </button>
+                    ) : commission.total_paid_amount >= commission.amount ? (
+                      <span style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#f8f9fa',
+                        color: '#27ae60',
+                        border: '1px solid #27ae60',
+                        borderRadius: '4px',
+                        fontSize: '0.85rem',
+                        fontWeight: 'bold'
+                      }}>
+                        ✅ 已全額撥款
+                      </span>
+                    ) : (
+                      <span style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#f8f9fa',
+                        color: '#6c757d',
+                        border: '1px solid #dee2e6',
+                        borderRadius: '4px',
+                        fontSize: '0.85rem'
+                      }}>
+                        {getStatusLabel(commission.status)}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
