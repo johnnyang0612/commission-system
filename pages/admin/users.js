@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../utils/supabaseClient';
-import { useAuth } from '../../utils/auth';
+import { useSimpleAuth } from '../../utils/simpleAuth';
 import { getCurrentUser, USER_ROLES } from '../../utils/permissions';
 
 export default function AdminUsers() {
   const router = useRouter();
-  const { user: authUser } = useAuth();
+  const { user: authUser, loading: authLoading } = useSimpleAuth();
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingUserId, setEditingUserId] = useState(null);
   const [selectedRole, setSelectedRole] = useState('');
-  const [authChecked, setAuthChecked] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUserForm, setNewUserForm] = useState({
     email: '',
@@ -30,52 +29,21 @@ export default function AdminUsers() {
   });
 
   useEffect(() => {
-    // 給認證一些時間載入
-    const timer = setTimeout(() => {
-      setAuthChecked(true);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (authChecked) {
+    if (!authLoading && authUser) {
       checkAdminAccess();
+    } else if (!authLoading && !authUser) {
+      router.push('/login');
     }
-  }, [authUser, authChecked]);
+  }, [authUser, authLoading]);
 
   async function checkAdminAccess() {
-    if (!authUser) {
-      console.log('No auth user, checking demo mode...');
-      // 檢查是否為演示模式
-      const demoMode = localStorage.getItem('demo_logged_in');
-      if (demoMode === 'true') {
-        // 使用演示用戶
-        const demoUser = {
-          id: 'demo-user',
-          email: 'demo@example.com',
-          role: 'admin'
-        };
-        setCurrentUser(demoUser);
-        fetchUsers();
-      } else {
-        console.log('Not in demo mode, redirecting to login');
-        router.push('/login');
-      }
-      return;
-    }
-
     console.log('Auth user:', authUser);
-    const userData = await getCurrentUser(authUser);
-    console.log('User data:', userData);
-    setCurrentUser(userData);
-
-    // 暫時允許所有已登入用戶訪問，以便調試
-    // if (userData?.role !== USER_ROLES.ADMIN) {
-    //   alert('您沒有權限訪問此頁面');
-    //   router.push('/');
-    //   return;
-    // }
-
+    // authUser 已經包含了從 users 表獲取的完整資料
+    setCurrentUser(authUser);
+    
+    // 檢查權限（暫時允許所有已登入用戶訪問以便調試）
+    console.log('User role:', authUser?.role);
+    
     fetchUsers();
   }
 
@@ -97,6 +65,7 @@ export default function AdminUsers() {
     } else {
       setUsers(data || []);
       console.log(`已載入 ${data?.length || 0} 個用戶`);
+      console.log('用戶列表詳細:', data?.map(u => ({ id: u.id, email: u.email, role: u.role })));
     }
     setLoading(false);
   }
@@ -107,16 +76,22 @@ export default function AdminUsers() {
     // 生成唯一 ID (使用 email 的 hash 或 timestamp)
     const userId = `pre_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    const { error } = await supabase
+    console.log('正在新增用戶:', { userId, ...newUserForm });
+    
+    const { data, error } = await supabase
       .from('users')
       .insert([{
         id: userId,
         ...newUserForm,
         created_at: new Date().toISOString()
-      }]);
+      }])
+      .select();
+
+    console.log('新增用戶結果:', { data, error });
 
     if (error) {
-      alert('新增用戶失敗: ' + error.message);
+      console.error('新增用戶失敗詳細錯誤:', error);
+      alert('新增用戶失敗: ' + error.message + '\n詳細: ' + JSON.stringify(error, null, 2));
     } else {
       alert('用戶新增成功！當用戶使用相同 Email 登入時會自動合併帳號。');
       setShowAddForm(false);
@@ -189,9 +164,15 @@ export default function AdminUsers() {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
         <div style={{ padding: '2rem', textAlign: 'center' }}>載入中...</div>
+    );
+  }
+
+  if (!authUser) {
+    return (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>請先登入</div>
     );
   }
 
