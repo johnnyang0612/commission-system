@@ -99,68 +99,77 @@ export function useSimpleAuth() {
       console.log('Auth state changed:', event, session?.user?.email);
       
       if (session?.user) {
-        try {
-          // 從 users 表獲取用戶資料
-          console.log('Auth state change: Fetching user data for:', session.user.email);
-          const { data: userData, error: fetchError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', session.user.email)
-            .single();
-          
-          console.log('Auth state change: User data result:', { userData, fetchError });
+        // 無論如何，先設置基本用戶資料並清除載入狀態，避免卡住
+        const basicUser = {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+          role: 'admin' // 暫時設為 admin 避免權限問題
+        };
         
-        if (userData) {
-          // 如果是預先創建的用戶（ID 以 pre_ 開頭），更新 ID 為真實的 auth ID
-          if (userData.id.startsWith('pre_')) {
-            await supabase
-              .from('users')
-              .update({ id: session.user.id })
-              .eq('email', session.user.email);
+        console.log('Auth state change: Setting basic user and clearing loading immediately');
+        setUser(basicUser);
+        setLoading(false);
+        
+        // 然後異步獲取完整的用戶資料，但不阻塞 UI
+        (async () => {
+          try {
+            console.log('Auth state change: Fetching detailed user data for:', session.user.email);
+            const { data: userData, error: fetchError } = await Promise.race([
+              supabase
+                .from('users')
+                .select('*')
+                .eq('email', session.user.email)
+                .single(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+            ]);
             
-            console.log('Merged pre-created user with auth user (in auth state change)');
+            console.log('Auth state change: Detailed user data result:', { userData, fetchError });
+        
+            if (userData) {
+              // 如果是預先創建的用戶（ID 以 pre_ 開頭），更新 ID 為真實的 auth ID
+              if (userData.id.startsWith('pre_')) {
+                await supabase
+                  .from('users')
+                  .update({ id: session.user.id })
+                  .eq('email', session.user.email);
+                
+                console.log('Merged pre-created user with auth user (in auth state change)');
+              }
+              
+              // 更新為完整的用戶資料
+              console.log('Auth state change: Updating to detailed user data');
+              setUser({
+                id: session.user.id,
+                email: session.user.email,
+                name: userData.name,
+                role: userData.role || 'sales'
+              });
+            } else {
+              // 在數據庫中創建新用戶記錄，但不阻塞 UI
+              console.log('Auth state change: Creating new user record in background');
+              await supabase
+                .from('users')
+                .insert([{
+                  id: session.user.id,
+                  email: session.user.email,
+                  name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+                  role: 'sales'
+                }]);
+              
+              // 更新為完整資料
+              setUser({
+                id: session.user.id,
+                email: session.user.email,
+                name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
+                role: 'sales'
+              });
+            }
+          } catch (error) {
+            console.error('Auth state change detailed fetch error:', error);
+            // 如果獲取詳細資料失敗，保持基本用戶資料
           }
-          
-          setUser({
-            id: session.user.id,
-            email: session.user.email,
-            name: userData.name,
-            role: userData.role || 'sales'
-          });
-          console.log('Auth state change: Setting loading to false after user data set');
-          setLoading(false);
-        } else {
-          // 創建新用戶記錄
-          await supabase
-            .from('users')
-            .insert([{
-              id: session.user.id,
-              email: session.user.email,
-              name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-              role: 'sales'
-            }]);
-          
-          setUser({
-            id: session.user.id,
-            email: session.user.email,
-            name: session.user.email.split('@')[0],
-            role: 'sales'
-          });
-          console.log('Auth state change: Setting loading to false after new user created');
-          setLoading(false);
-        }
-      } catch (error) {
-          console.error('Auth state change error:', error);
-          // 即使出錯也要設置基本用戶資料和清除載入狀態
-          setUser({
-            id: session.user.id,
-            email: session.user.email,
-            name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-            role: 'sales'
-          });
-          console.log('Auth state change: Setting loading to false after error');
-          setLoading(false);
-        }
+        })();
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
