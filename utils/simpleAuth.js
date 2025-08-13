@@ -14,9 +14,8 @@ export function useSimpleAuth() {
       try {
         // 檢查 Supabase session
         const { data: { session } } = await supabase.auth.getSession();
+        
         if (session?.user) {
-          // 如果有真實的 session，清除演示模式
-          localStorage.removeItem('demo_logged_in');
           
           // 從 users 表獲取用戶資料
           const { data: userData, error: userError } = await supabase
@@ -74,18 +73,12 @@ export function useSimpleAuth() {
             }
           }
         } else {
-          // 只有在真的沒有 session 時才考慮演示模式
+          // 沒有 session，設置為 null
           setUser(null);
         }
       } catch (error) {
         console.error('Auth error:', error);
-        // 錯誤時也設置演示用戶以確保能正常顯示
-        console.log('Setting fallback demo user due to auth error');
-        setUser({
-          id: 'error-fallback',
-          email: 'user@example.com',
-          role: 'admin'
-        });
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -98,8 +91,6 @@ export function useSimpleAuth() {
       console.log('Auth state changed:', event, session?.user?.email);
       
       if (session?.user) {
-        // 清除演示模式
-        localStorage.removeItem('demo_logged_in');
         
         // 從 users 表獲取用戶資料
         const { data: userData } = await supabase
@@ -145,7 +136,6 @@ export function useSimpleAuth() {
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
-        localStorage.removeItem('demo_logged_in');
       }
     });
 
@@ -158,6 +148,5 @@ export function useSimpleAuth() {
 }
 
 export const signOutSimple = async () => {
-  localStorage.removeItem('demo_logged_in');
   await supabase.auth.signOut();
 };

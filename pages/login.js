@@ -5,7 +5,6 @@ import { useRouter } from 'next/router';
 export default function Login() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [demoMode, setDemoMode] = useState(false);
 
   useEffect(() => {
     // 檢查是否已登入
@@ -58,11 +57,6 @@ export default function Login() {
     }
   };
 
-  const handleDemoLogin = () => {
-    // 設置 localStorage 標記為已登入
-    localStorage.setItem('demo_logged_in', 'true');
-    router.push('/');
-  };
 
   return (
     <div style={{ 
@@ -121,26 +115,6 @@ export default function Login() {
               使用 Google 登入
             </>
           )}
-        </button>
-        
-        <div style={{ margin: '1rem 0', textAlign: 'center', color: '#6c757d' }}>
-          或
-        </div>
-        
-        <button
-          onClick={handleDemoLogin}
-          style={{
-            width: '100%',
-            padding: '1rem',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '1rem',
-            cursor: 'pointer'
-          }}
-        >
-          演示登入 (開發測試)
         </button>
         
         <p style={{ fontSize: '0.875rem', color: '#6c757d', marginTop: '1rem' }}>
