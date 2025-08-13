@@ -146,14 +146,9 @@ export default function ProjectDetail() {
   }
 
   async function fetchCommissions() {
-    if (!supabase) return;
-    const { data, error } = await supabase
-      .from('commission_summary')
-      .select('*')
-      .eq('project_id', id);
-    
-    if (error) console.error(error);
-    else setCommissions(data || []);
+    // 不再需要從外部獲取分潤數據，所有分潤資訊都從 project_installments 計算
+    // 但保留這個函數以避免破壞現有的調用
+    setCommissions([]);
   }
 
   async function fetchCosts() {
@@ -398,11 +393,19 @@ export default function ProjectDetail() {
         return;
       }
       
-      // 計算分潤資料
-      const commission = commissions.length > 0 ? commissions[0] : null;
+      // 基於專案設定計算分潤資料
+      let commissionRate = 0;
+      if (project.use_fixed_commission && project.fixed_commission_percentage) {
+        commissionRate = project.fixed_commission_percentage;
+      } else if (project.type === 'renewal') {
+        commissionRate = 15; // 續約15%
+      } else {
+        commissionRate = 35; // 預設35%
+      }
+      
       const commissionData = {
         amount: installment.actual_commission || installment.commission_amount || 0,
-        commission_rate: commission?.percentage || 0
+        commission_rate: commissionRate
       };
       
       // 生成勞務報酬單
@@ -1337,10 +1340,21 @@ export default function ProjectDetail() {
               const paidCosts = costs.filter(cost => cost.is_paid).reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
               const unpaidCosts = costs.filter(cost => !cost.is_paid).reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
               const totalCosts = paidCosts + unpaidCosts;
-              const totalCommissionAmount = commissions.length > 0 ? parseFloat(commissions[0].amount || 0) : 0;
-              // 預期利潤 = 總案金額 - 分潤總額 - 已支出成本 - 待支出成本
+              
               const projectAmount = parseFloat(project.amount || 0);
-              const expectedProfit = projectAmount - totalCommissionAmount - totalCosts;
+              
+              // 計算專案的應有分潤總額（基於專案設定）
+              let expectedCommissionAmount = 0;
+              if (project.use_fixed_commission && project.fixed_commission_percentage) {
+                expectedCommissionAmount = projectAmount * (project.fixed_commission_percentage / 100);
+              } else if (project.type === 'renewal') {
+                expectedCommissionAmount = projectAmount * 0.15; // 續約15%
+              } else {
+                expectedCommissionAmount = projectAmount * 0.35; // 預設35%
+              }
+              
+              // 預期利潤 = 總案金額 - 應有分潤總額 - 已支出成本 - 待支出成本
+              const expectedProfit = projectAmount - expectedCommissionAmount - totalCosts;
               const profitMargin = projectAmount > 0 ? ((expectedProfit / projectAmount) * 100).toFixed(1) : 0;
               
               return (
@@ -1810,9 +1824,20 @@ export default function ProjectDetail() {
             </thead>
           <tbody>
             {installments.map((installment, index) => {
-              // 計算該期應撥分潤金額
-              const commission = commissions.length > 0 ? commissions[0] : null;
-              const commissionPerInstallment = installment.commission_amount || (commission ? (commission.amount / installments.length) : 0);
+              // 基於專案設定計算該期應撥分潤金額
+              const projectAmount = parseFloat(project.amount || 0);
+              let commissionRate = 0;
+              if (project.use_fixed_commission && project.fixed_commission_percentage) {
+                commissionRate = project.fixed_commission_percentage / 100;
+              } else if (project.type === 'renewal') {
+                commissionRate = 0.15; // 續約15%
+              } else {
+                commissionRate = 0.35; // 預設35%
+              }
+              
+              // 按期數平均分配分潤或使用期數設定的分潤金額
+              const totalCommissionAmount = projectAmount * commissionRate;
+              const commissionPerInstallment = installment.commission_amount || (totalCommissionAmount / installments.length);
               
               // 計算百分比
               const totalAmount = project.amount * 1.05; // 含稅總額
@@ -2033,20 +2058,38 @@ export default function ProjectDetail() {
           </table>
         </div>
         
-        {/* 分潤總覽 - 只有 Admin 和 Finance 可以看到 */}
-        {canViewFinancialData(userRole) && commissions.length > 0 && (() => {
-          // 使用 commission_summary 視圖的資料
-          const commission = commissions[0];
-          const totalPaidCommission = parseFloat(commission.total_paid_amount || 0);
-          const totalCommissionAmount = parseFloat(commission.amount || 0);
-          const remainingCommission = parseFloat(commission.remaining_amount || 0);
+        {/* 分潤總覽 - 基於 project_installments 實際撥款資料 */}
+        {canViewFinancialData(userRole) && (() => {
+          // 直接從 project_installments 計算撥款統計
+          const totalPaidCommission = installments
+            .filter(inst => inst.actual_commission > 0)
+            .reduce((sum, inst) => sum + parseFloat(inst.actual_commission || 0), 0);
+          
+          // 計算專案應有的分潤總額
+          const projectAmount = parseFloat(project.amount || 0);
+          let expectedCommissionAmount = 0;
+          let commissionPercentage = 0;
+          
+          if (project.use_fixed_commission && project.fixed_commission_percentage) {
+            commissionPercentage = project.fixed_commission_percentage;
+            expectedCommissionAmount = projectAmount * (project.fixed_commission_percentage / 100);
+          } else if (project.type === 'renewal') {
+            commissionPercentage = 15;
+            expectedCommissionAmount = projectAmount * 0.15;
+          } else {
+            commissionPercentage = 35;
+            expectedCommissionAmount = projectAmount * 0.35;
+          }
+          
+          const totalCommissionAmount = expectedCommissionAmount;
+          const remainingCommission = totalCommissionAmount - totalPaidCommission;
           
           return (
             <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
               <h4 style={{ margin: '0 0 1rem 0', color: '#27ae60' }}>分潤資訊</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                 <div>
-                  <strong>分潤比例：</strong>{commission.percentage?.toFixed(1)}%
+                  <strong>分潤比例：</strong>{commissionPercentage?.toFixed(1)}%
                 </div>
                 <div>
                   <strong>分潤總額：</strong>NT$ {totalCommissionAmount.toLocaleString()}

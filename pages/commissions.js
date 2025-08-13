@@ -25,43 +25,79 @@ export default function Commissions() {
   async function fetchCommissions() {
     if (!supabase) return;
     
-    let query = supabase
-      .from('commission_summary')
+    // 直接從 project_installments 獲取撥款資料，配合專案資訊
+    const { data: installmentData, error: installmentError } = await supabase
+      .from('project_installments')
       .select(`
         *,
         project:project_id (
+          id,
           client_name,
           project_code,
           project_name,
           amount,
           type,
           assigned_to,
-          manager_id
-        ),
-        user:user_id (
-          name,
-          email
+          manager_id,
+          use_fixed_commission,
+          fixed_commission_percentage
         )
-      `);
+      `)
+      .not('actual_commission', 'is', null)
+      .gt('actual_commission', 0);
     
-    // Apply role-based filtering
-    const user = getCurrentUser();
-    const role = getCurrentUserRole();
-    
-    // 暫時移除角色過濾，確保分潤資料可以正常載入
-    if (role === 'sales') {
-      // 當有真實用戶系統時，可以啟用這個過濾
-      // query = query.eq('user_id', user.id);
-    } else if (role === 'leader') {
-      // 當有真實用戶階層資料時，可以啟用這個過濾
-      // query = query.or(`user_id.eq.${user.id},project.manager_id.eq.${user.id}`);
+    if (installmentError) {
+      console.error('獲取撥款資料失敗:', installmentError);
+      return;
     }
-    // Admin and Finance can see all commissions
     
-    const { data, error } = await query.order('created_at', { ascending: false });
+    // 將 installment 資料轉換成分潤格式，以專案分組統計
+    const commissionsByProject = {};
     
-    if (error) console.error(error);
-    else setCommissions(data || []);
+    installmentData?.forEach(installment => {
+      const projectId = installment.project_id;
+      if (!commissionsByProject[projectId]) {
+        const project = installment.project;
+        let commissionRate = 0;
+        if (project.use_fixed_commission && project.fixed_commission_percentage) {
+          commissionRate = project.fixed_commission_percentage;
+        } else if (project.type === 'renewal') {
+          commissionRate = 15;
+        } else {
+          commissionRate = 35;
+        }
+        
+        commissionsByProject[projectId] = {
+          id: projectId,
+          project_id: projectId,
+          user_id: project.assigned_to,
+          percentage: commissionRate,
+          amount: parseFloat(project.amount || 0) * (commissionRate / 100),
+          status: 'pending',
+          total_paid_amount: 0,
+          payout_count: 0,
+          remaining_amount: 0,
+          project: project,
+          payouts: []
+        };
+      }
+      
+      // 累加已撥款金額
+      commissionsByProject[projectId].total_paid_amount += parseFloat(installment.actual_commission || 0);
+      commissionsByProject[projectId].payout_count += 1;
+      commissionsByProject[projectId].payouts.push({
+        amount: installment.actual_commission,
+        date: installment.commission_payment_date,
+        installment_number: installment.installment_number
+      });
+    });
+    
+    // 計算剩餘金額
+    Object.values(commissionsByProject).forEach(commission => {
+      commission.remaining_amount = commission.amount - commission.total_paid_amount;
+    });
+    
+    setCommissions(Object.values(commissionsByProject));
   }
 
   async function fetchProjects() {
