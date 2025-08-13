@@ -31,8 +31,11 @@ export default function Layout({ children }) {
     );
   }
   
-  // 如果沒有登入，顯示載入畫面（simpleAuth 會自動設置用戶）
+  // 如果沒有登入，重定向到登入頁面
   if (!user && router.pathname !== '/login') {
+    if (typeof window !== 'undefined') {
+      router.push('/login');
+    }
     return (
       <div style={{ 
         display: 'flex', 
@@ -40,7 +43,7 @@ export default function Layout({ children }) {
         alignItems: 'center', 
         minHeight: '100vh' 
       }}>
-        <div>正在載入用戶資訊...</div>
+        <div>正在重定向到登入頁面...</div>
       </div>
     );
   }

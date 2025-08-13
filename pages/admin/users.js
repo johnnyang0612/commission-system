@@ -13,6 +13,21 @@ export default function AdminUsers() {
   const [editingUserId, setEditingUserId] = useState(null);
   const [selectedRole, setSelectedRole] = useState('');
   const [authChecked, setAuthChecked] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({
+    email: '',
+    name: '',
+    role: 'sales',
+    phone_number: '',
+    mobile_number: '',
+    registered_address: '',
+    mailing_address: '',
+    national_id: '',
+    bank_name: '',
+    bank_code: '',
+    account_number: '',
+    account_name: ''
+  });
 
   useEffect(() => {
     // 給認證一些時間載入
@@ -84,6 +99,43 @@ export default function AdminUsers() {
       console.log(`已載入 ${data?.length || 0} 個用戶`);
     }
     setLoading(false);
+  }
+
+  async function addNewUser(e) {
+    e.preventDefault();
+    
+    // 生成唯一 ID (使用 email 的 hash 或 timestamp)
+    const userId = `pre_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const { error } = await supabase
+      .from('users')
+      .insert([{
+        id: userId,
+        ...newUserForm,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (error) {
+      alert('新增用戶失敗: ' + error.message);
+    } else {
+      alert('用戶新增成功！當用戶使用相同 Email 登入時會自動合併帳號。');
+      setShowAddForm(false);
+      setNewUserForm({
+        email: '',
+        name: '',
+        role: 'sales',
+        phone_number: '',
+        mobile_number: '',
+        registered_address: '',
+        mailing_address: '',
+        national_id: '',
+        bank_name: '',
+        bank_code: '',
+        account_number: '',
+        account_name: ''
+      });
+      fetchUsers();
+    }
   }
 
   async function updateUserRole(userId, newRole) {
@@ -161,13 +213,10 @@ export default function AdminUsers() {
           ← 返回首頁
         </button>
         <button
-          onClick={() => {
-            console.log('當前用戶列表:', users);
-            alert(`當前有 ${users.length} 個用戶\n第一個用戶: ${users[0]?.email || '無'}`);
-          }}
+          onClick={() => setShowAddForm(!showAddForm)}
           style={{
             padding: '0.5rem 1rem',
-            backgroundColor: '#3498db',
+            backgroundColor: '#27ae60',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
@@ -175,10 +224,226 @@ export default function AdminUsers() {
             marginRight: '1rem'
           }}
         >
-          檢查資料
+          {showAddForm ? '取消新增' : '+ 新增用戶'}
         </button>
         <h1 style={{ display: 'inline-block', margin: 0 }}>用戶角色管理</h1>
       </div>
+
+      {showAddForm && (
+        <form onSubmit={addNewUser} style={{
+          backgroundColor: '#f8f9fa',
+          padding: '1.5rem',
+          borderRadius: '8px',
+          marginBottom: '2rem'
+        }}>
+          <h3 style={{ marginBottom: '1rem', color: '#2c3e50' }}>新增用戶</h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                Email *
+              </label>
+              <input
+                type="email"
+                value={newUserForm.email}
+                onChange={(e) => setNewUserForm({...newUserForm, email: e.target.value})}
+                required
+                placeholder="user@example.com"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                姓名 *
+              </label>
+              <input
+                type="text"
+                value={newUserForm.name}
+                onChange={(e) => setNewUserForm({...newUserForm, name: e.target.value})}
+                required
+                placeholder="張三"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                角色 *
+              </label>
+              <select
+                value={newUserForm.role}
+                onChange={(e) => setNewUserForm({...newUserForm, role: e.target.value})}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              >
+                <option value="sales">業務</option>
+                <option value="leader">主管</option>
+                <option value="finance">財務</option>
+                <option value="admin">管理員</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                手機號碼
+              </label>
+              <input
+                type="tel"
+                value={newUserForm.mobile_number}
+                onChange={(e) => setNewUserForm({...newUserForm, mobile_number: e.target.value})}
+                placeholder="0912345678"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                身分證字號
+              </label>
+              <input
+                type="text"
+                value={newUserForm.national_id}
+                onChange={(e) => setNewUserForm({...newUserForm, national_id: e.target.value})}
+                placeholder="A123456789"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                戶籍地址
+              </label>
+              <input
+                type="text"
+                value={newUserForm.registered_address}
+                onChange={(e) => setNewUserForm({...newUserForm, registered_address: e.target.value})}
+                placeholder="台北市..."
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                銀行名稱
+              </label>
+              <input
+                type="text"
+                value={newUserForm.bank_name}
+                onChange={(e) => setNewUserForm({...newUserForm, bank_name: e.target.value})}
+                placeholder="例：台灣銀行"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                銀行代碼
+              </label>
+              <input
+                type="text"
+                value={newUserForm.bank_code}
+                onChange={(e) => setNewUserForm({...newUserForm, bank_code: e.target.value})}
+                placeholder="例：004"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                帳號
+              </label>
+              <input
+                type="text"
+                value={newUserForm.account_number}
+                onChange={(e) => setNewUserForm({...newUserForm, account_number: e.target.value})}
+                placeholder="銀行帳號"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                戶名
+              </label>
+              <input
+                type="text"
+                value={newUserForm.account_name}
+                onChange={(e) => setNewUserForm({...newUserForm, account_name: e.target.value})}
+                placeholder="帳戶持有人姓名"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+          </div>
+          
+          <button
+            type="submit"
+            style={{
+              padding: '0.75rem 2rem',
+              backgroundColor: '#27ae60',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            確認新增
+          </button>
+        </form>
+      )}
+      
 
       <div style={{
         backgroundColor: '#fff3cd',

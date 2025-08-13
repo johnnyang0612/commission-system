@@ -16,6 +16,51 @@ export default function AuthCallback() {
           router.push('/login?error=' + encodeURIComponent(error.message));
         } else {
           console.log('OAuth success:', data);
+          
+          // 確保用戶資料存在於 users 表
+          if (data.session?.user) {
+            const { data: existingUser, error: fetchError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('email', data.session.user.email)
+              .single();
+            
+            if (existingUser) {
+              // 如果找到用戶且是預先創建的（ID 以 pre_ 開頭），更新 ID
+              if (existingUser.id.startsWith('pre_')) {
+                const { error: updateError } = await supabase
+                  .from('users')
+                  .update({ id: data.session.user.id })
+                  .eq('email', data.session.user.email);
+                
+                if (!updateError) {
+                  console.log('Successfully merged pre-created user with authenticated user');
+                } else {
+                  console.error('Error merging user:', updateError);
+                }
+              }
+            } else if (!fetchError) {
+              // 創建新用戶記錄
+              const { data: newUser, error: insertError } = await supabase
+                .from('users')
+                .insert([{
+                  id: data.session.user.id,
+                  email: data.session.user.email,
+                  name: data.session.user.user_metadata?.full_name || data.session.user.email.split('@')[0],
+                  role: 'sales', // 新用戶預設為業務角色
+                  created_at: new Date().toISOString()
+                }])
+                .select()
+                .single();
+              
+              if (insertError) {
+                console.error('Error creating user record:', insertError);
+              } else {
+                console.log('New user created:', newUser);
+              }
+            }
+          }
+          
           // 成功登入，跳轉到首頁
           router.push('/');
         }
