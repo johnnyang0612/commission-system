@@ -600,7 +600,8 @@ export default function ProjectDocuments({ projectId, userRole }) {
               <div style={{ 
                 display: 'grid', 
                 gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
-                gap: '1rem' 
+                gap: '1rem',
+                overflow: 'visible'
               }}>
                 {docs.map(doc => (
                   <div key={doc.id} style={{
@@ -842,7 +843,10 @@ export default function ProjectDocuments({ projectId, userRole }) {
                               border: '1px solid #ddd',
                               borderRadius: '4px',
                               fontSize: '0.7rem',
-                              flex: 1
+                              flex: 1,
+                              position: 'relative',
+                              zIndex: 10,
+                              minWidth: '80px'
                             }}
                           >
                             {Object.entries(DOCUMENT_STATUS).map(([key, status]) => (

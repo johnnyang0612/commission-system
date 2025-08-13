@@ -697,11 +697,12 @@ export default function Home() {
         )}
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '1200px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '1350px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '140px' }}>專案編號</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '120px' }}>客戶名稱</th>
+                <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '150px' }}>專案名稱</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center', borderBottom: '2px solid #dee2e6', width: '80px' }}>類型</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>未稅金額</th>
                 <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', borderBottom: '2px solid #dee2e6', width: '100px' }}>含稅金額</th>
@@ -717,6 +718,7 @@ export default function Home() {
                 <tr key={project.id} style={{ borderBottom: '1px solid #dee2e6' }}>
                   <td style={{ padding: '0.75rem 0.5rem', wordBreak: 'break-all' }}>{project.project_code}</td>
                   <td style={{ padding: '0.75rem 0.5rem' }}>{project.client_name}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold', color: '#2c3e50' }}>{project.project_name}</td>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
                     <span style={{
                       padding: '0.25rem 0.5rem',
