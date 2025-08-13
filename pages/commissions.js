@@ -459,23 +459,23 @@ export default function Commissions() {
                     {new Date(commission.created_at).toLocaleDateString('zh-TW')}
                   </td>
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    {(commission.remaining_amount > 0) ? (
-                      <button
-                        onClick={() => handleCommissionPayout(commission.id)}
-                        style={{
-                          padding: '0.5rem 1rem',
-                          backgroundColor: '#27ae60',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.85rem',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        💰 撥款
-                      </button>
-                    ) : commission.total_paid_amount >= commission.amount ? (
+                    <button
+                      onClick={() => window.open(`/projects/${commission.project_id}`, '_blank')}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#3498db',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        whiteSpace: 'nowrap',
+                        marginRight: '0.5rem'
+                      }}
+                    >
+                      📋 查看專案
+                    </button>
+                    {commission.total_paid_amount >= commission.amount ? (
                       <span style={{
                         padding: '0.5rem 1rem',
                         backgroundColor: '#f8f9fa',
@@ -487,6 +487,18 @@ export default function Commissions() {
                       }}>
                         ✅ 已全額撥款
                       </span>
+                    ) : commission.total_paid_amount > 0 ? (
+                      <span style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#fff3cd',
+                        color: '#f39c12',
+                        border: '1px solid #f39c12',
+                        borderRadius: '4px',
+                        fontSize: '0.85rem',
+                        fontWeight: 'bold'
+                      }}>
+                        🔄 部分撥款
+                      </span>
                     ) : (
                       <span style={{
                         padding: '0.5rem 1rem',
@@ -496,7 +508,7 @@ export default function Commissions() {
                         borderRadius: '4px',
                         fontSize: '0.85rem'
                       }}>
-                        {getStatusLabel(commission.status)}
+                        ⏳ 等待撥款
                       </span>
                     )}
                   </td>

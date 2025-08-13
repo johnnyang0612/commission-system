@@ -421,6 +421,81 @@ export default function ProjectDetail() {
       alert('下載失敗: ' + error.message);
     }
   }
+
+  async function downloadInstallmentLaborReceipt(installment) {
+    try {
+      // 查找對應的勞務報酬單
+      const { data: laborReceipts, error } = await supabase
+        .from('labor_receipts')
+        .select(`
+          *,
+          commission_payout:commission_payouts!inner(
+            related_installment_id
+          )
+        `)
+        .eq('commission_payouts.related_installment_id', installment.id);
+
+      if (error) {
+        console.error('查詢勞務報酬單失敗:', error);
+        alert('查詢勞務報酬單失敗');
+        return;
+      }
+
+      let laborReceipt = null;
+      if (laborReceipts && laborReceipts.length > 0) {
+        laborReceipt = laborReceipts[0];
+      }
+
+      if (!laborReceipt) {
+        // 如果沒有找到勞務報酬單，嘗試生成一個
+        const { data: commission, error: commissionError } = await supabase
+          .from('commissions')
+          .select('id, user_id')
+          .eq('project_id', project.id)
+          .single();
+
+        if (commissionError || !commission) {
+          alert('找不到對應的分潤記錄，無法生成勞務報酬單');
+          return;
+        }
+
+        // 生成勞務報酬單
+        const { generateLaborReceipt } = await import('../../utils/laborReceiptGenerator');
+        const receiptResult = await generateLaborReceipt(commission.id, {
+          paymentDate: installment.commission_payment_date || new Date().toISOString().split('T')[0],
+          partialAmount: installment.actual_commission,
+          installmentNumber: installment.installment_number
+        });
+
+        if (!receiptResult.success) {
+          alert(`生成勞務報酬單失敗: ${receiptResult.error}`);
+          return;
+        }
+
+        // 重新獲取勞務報酬單資料
+        const { data: newReceipt, error: newError } = await supabase
+          .from('labor_receipts')
+          .select('*')
+          .eq('id', receiptResult.receiptId)
+          .single();
+
+        if (newError || !newReceipt) {
+          alert('無法獲取勞務報酬單資料');
+          return;
+        }
+
+        laborReceipt = newReceipt;
+      }
+
+      // 使用勞務報酬單列印工具
+      const { generateLaborReceiptPDF } = await import('../../utils/laborReceiptPDF');
+      generateLaborReceiptPDF(laborReceipt);
+
+    } catch (error) {
+      console.error('下載勞務報酬單失敗:', error);
+      alert('下載失敗: ' + error.message);
+    }
+  }
   
   async function updateInstallmentStatus(installmentId, status, paymentDate, actualAmount, actualCommission, commissionDate) {
     if (!supabase) return;
@@ -574,22 +649,90 @@ export default function ProjectDetail() {
     const paymentDate = prompt('請輸入撥款日期 (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
     
     if (actualCommission && paymentDate) {
-      const { error } = await supabase
+      const commissionAmount = parseFloat(actualCommission);
+      
+      // 1. 更新期數的分潤記錄
+      const { error: updateError } = await supabase
         .from('project_installments')
         .update({
           commission_status: status,
-          actual_commission: parseFloat(actualCommission),
+          actual_commission: commissionAmount,
           commission_payment_date: paymentDate
         })
         .eq('id', installmentId);
       
-      if (error) {
-        console.error(error);
+      if (updateError) {
+        console.error(updateError);
         alert('撥款記錄更新失敗');
-      } else {
-        alert('撥款記錄更新成功');
-        fetchInstallments();
+        return;
       }
+
+      // 2. 同步到分潤管理系統並生成勞務報酬單
+      try {
+        // 獲取對應的分潤記錄
+        const { data: commission, error: commissionError } = await supabase
+          .from('commissions')
+          .select('id, user_id')
+          .eq('project_id', project.id)
+          .single();
+
+        if (commission && !commissionError) {
+          // 獲取期數資訊
+          const installment = installments.find(i => i.id === installmentId);
+          
+          // 創建分潤撥款記錄
+          const payoutRecord = {
+            commission_id: commission.id,
+            project_id: project.id,
+            user_id: commission.user_id,
+            payout_date: paymentDate,
+            payout_amount: commissionAmount,
+            payment_basis: installment?.actual_amount || installment?.amount || 0,
+            payout_ratio: installment?.amount ? commissionAmount / installment.amount : 0,
+            related_installment_id: installmentId,
+            notes: `專案期數撥款 - 第${installment?.installment_number || ''}期`,
+            status: 'paid'
+          };
+
+          const { data: newPayout, error: payoutError } = await supabase
+            .from('commission_payouts')
+            .insert([payoutRecord])
+            .select()
+            .single();
+
+          if (payoutError) {
+            console.error('同步分潤撥款記錄失敗:', payoutError);
+          } else {
+            console.log('已同步到分潤管理系統');
+            
+            // 生成勞務報酬單
+            const { generateLaborReceipt } = await import('../../utils/laborReceiptGenerator');
+            const receiptResult = await generateLaborReceipt(commission.id, {
+              paymentDate,
+              partialAmount: commissionAmount,
+              payoutId: newPayout.id,
+              installmentNumber: installment?.installment_number || null
+            });
+
+            if (receiptResult.success) {
+              // 更新撥款記錄，關聯勞務報酬單
+              await supabase
+                .from('commission_payouts')
+                .update({ labor_receipt_id: receiptResult.receiptId })
+                .eq('id', newPayout.id);
+              
+              console.log('已自動生成勞務報酬單:', receiptResult.receiptNumber);
+            } else {
+              console.error('生成勞務報酬單失敗:', receiptResult.error);
+            }
+          }
+        }
+      } catch (syncError) {
+        console.error('同步到分潤系統時發生錯誤:', syncError);
+      }
+      
+      alert('撥款記錄更新成功');
+      fetchInstallments();
     }
   }
 
@@ -1634,10 +1777,10 @@ export default function ProjectDetail() {
                           標記已付
                         </button>
                       )}
-                      {/* 勞務報酬單按鈕 - 只有業務人員本人可以下載 */}
-                      {assignedUser?.id === authUser?.id && installment.commission_amount > 0 && (
+                      {/* 勞務報酬單按鈕 - 有實撥分潤的期數可以下載 */}
+                      {installment.actual_commission > 0 && (
                         <button
-                          onClick={() => downloadLaborForm(installment)}
+                          onClick={() => downloadInstallmentLaborReceipt(installment)}
                           style={{
                             padding: '0.25rem 0.5rem',
                             backgroundColor: '#9b59b6',
@@ -1653,7 +1796,7 @@ export default function ProjectDetail() {
                           }}
                           title="下載此期勞務報酬單"
                         >
-                          勞務報酬單
+                          📄 勞務報酬單
                         </button>
                       )}
                       {installment.status === 'paid' && (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useSimpleAuth } from '../utils/simpleAuth';
+import { generateLaborReceiptPDF, downloadLaborReceiptCSV } from '../utils/laborReceiptPDF';
 
 export default function Profile() {
   const { user: authUser } = useSimpleAuth();
@@ -40,9 +41,12 @@ export default function Profile() {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [laborReceipts, setLaborReceipts] = useState([]);
+  const [loadingReceipts, setLoadingReceipts] = useState(false);
 
   useEffect(() => {
     fetchUserProfile();
+    fetchLaborReceipts();
   }, [authUser]);
 
   async function fetchUserProfile() {
@@ -113,6 +117,41 @@ export default function Profile() {
     
     setUser(userData);
     setLoading(false);
+  }
+
+  async function fetchLaborReceipts() {
+    if (!supabase || !authUser) {
+      setLoadingReceipts(false);
+      return;
+    }
+
+    setLoadingReceipts(true);
+    try {
+      const { data, error } = await supabase
+        .from('labor_receipts')
+        .select(`
+          *,
+          commission:commission_id (
+            project:project_id (
+              project_code,
+              project_name,
+              client_name
+            )
+          )
+        `)
+        .eq('recipient_id', authUser.id)
+        .order('receipt_date', { ascending: false });
+
+      if (error) {
+        console.error('獲取勞務報酬單失敗:', error);
+      } else {
+        setLaborReceipts(data || []);
+      }
+    } catch (error) {
+      console.error('獲取勞務報酬單錯誤:', error);
+    } finally {
+      setLoadingReceipts(false);
+    }
   }
 
   async function handleSubmit(e) {
@@ -727,6 +766,104 @@ export default function Profile() {
                   <div><strong>勞保費：</strong>NT$ {formData.labor_insurance_fee || 0}</div>
                 </div>
               </div>
+            </div>
+
+            {/* 勞務報酬單區域 */}
+            <div style={{ marginTop: '3rem', padding: '2rem', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0, color: '#2c3e50' }}>我的勞務報酬單</h3>
+                <button
+                  onClick={() => downloadLaborReceiptCSV(laborReceipts)}
+                  disabled={laborReceipts.length === 0}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: laborReceipts.length > 0 ? '#27ae60' : '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: laborReceipts.length > 0 ? 'pointer' : 'not-allowed',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  📥 匯出全部 CSV
+                </button>
+              </div>
+
+              {loadingReceipts ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6c757d' }}>
+                  載入勞務報酬單中...
+                </div>
+              ) : laborReceipts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6c757d' }}>
+                  暫無勞務報酬單
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#fff' }}>
+                        <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>單號</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>日期</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>專案</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>總額</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>扣繳稅</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>健保費</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>實發金額</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {laborReceipts.map(receipt => (
+                        <tr key={receipt.id} style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <td style={{ padding: '0.75rem', fontWeight: 'bold', color: '#2c3e50' }}>
+                            {receipt.receipt_number}
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            {new Date(receipt.receipt_date).toLocaleDateString('zh-TW')}
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ fontWeight: 'bold' }}>
+                              {receipt.commission?.project?.project_code || '-'}
+                            </div>
+                            <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                              {receipt.commission?.project?.client_name || '-'}
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 'bold' }}>
+                            NT$ {(receipt.gross_amount || 0).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#e74c3c' }}>
+                            NT$ {(receipt.tax_amount || 0).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', color: '#f39c12' }}>
+                            NT$ {(receipt.insurance_amount || 0).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 'bold', color: '#27ae60' }}>
+                            NT$ {(receipt.net_amount || 0).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <button
+                              onClick={() => generateLaborReceiptPDF(receipt)}
+                              style={{
+                                padding: '0.4rem 0.8rem',
+                                backgroundColor: '#3498db',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem'
+                              }}
+                              title="列印勞務報酬單"
+                            >
+                              🖨️ 列印
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
