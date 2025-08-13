@@ -159,10 +159,18 @@ export default function FileUpload({
         )}
       </div>
 
+      {/* 調試信息 */}
+      <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.5rem' }}>
+        調試: 目前檔案數量 = {currentFiles.length}
+        {currentFiles.length > 0 && `, 檔案: ${currentFiles.map(f => f.fileName || f.originalName).join(', ')}`}
+      </div>
+
       {/* 已上傳檔案列表 */}
-      {currentFiles.length > 0 && (
-        <div>
-          <h5 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>已上傳檔案：</h5>
+      <div>
+        <h5 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+          已上傳檔案 ({currentFiles.length}):
+        </h5>
+        {currentFiles.length > 0 ? (
           <div style={{ 
             border: '1px solid #dee2e6',
             borderRadius: '4px',
@@ -239,8 +247,18 @@ export default function FileUpload({
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{ 
+            padding: '1rem',
+            textAlign: 'center',
+            color: '#666',
+            border: '1px dashed #ccc',
+            borderRadius: '4px'
+          }}>
+            尚未上傳任何檔案
+          </div>
+        )}
+      </div>
 
       {/* 說明文字 */}
       <div style={{ 
