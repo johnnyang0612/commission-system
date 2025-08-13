@@ -683,16 +683,22 @@ export default function ProjectDetail() {
     const signDateChanged = changes.some(change => change.field === 'sign_date');
     
     if (taxIdChanged || signDateChanged) {
+      console.log('Tax ID or Sign Date changed:', { taxIdChanged, signDateChanged });
+      console.log('Current tax_id:', editFormData.tax_id);
+      console.log('Current sign_date:', editFormData.sign_date);
+      
       const signDateFormatted = editFormData.sign_date.replace(/-/g, '');
       const newProjectCode = editFormData.tax_id + '-' + signDateFormatted;
       
+      console.log('New project code will be:', newProjectCode);
+      console.log('Old project code was:', project.project_code);
+      
       // 檢查新的專案編號是否已存在
-      const projectId = parseInt(id);
       const { data: existingProject, error: checkError } = await supabase
         .from('projects')
         .select('id')
         .eq('project_code', newProjectCode)
-        .neq('id', projectId)
+        .neq('id', id)  // 直接使用 id (UUID)，不需要 parseInt
         .single();
       
       // 如果查詢出錯但不是"找不到記錄"的錯誤，則報告錯誤
