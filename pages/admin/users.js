@@ -49,25 +49,56 @@ export default function AdminUsers() {
 
   async function fetchUsers() {
     setLoading(true);
-    console.log('正在獲取用戶列表...');
+    console.log('=== fetchUsers 開始 ===');
+    console.log('Supabase 客戶端狀態:', !!supabase);
+    console.log('當前認證用戶:', authUser);
     
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    console.log('用戶資料:', data);
-    console.log('錯誤:', error);
-    
-    if (error) {
-      console.error('獲取用戶失敗:', error);
-      alert('無法獲取用戶列表: ' + error.message);
-    } else {
-      setUsers(data || []);
-      console.log(`已載入 ${data?.length || 0} 個用戶`);
-      console.log('用戶列表詳細:', data?.map(u => ({ id: u.id, email: u.email, role: u.role })));
+    if (!supabase) {
+      console.error('Supabase 客戶端未初始化');
+      alert('數據庫連接錯誤');
+      setLoading(false);
+      return;
     }
+    
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      console.log('=== 數據庫查詢結果 ===');
+      console.log('用戶資料:', data);
+      console.log('錯誤:', error);
+      console.log('數據長度:', data?.length);
+      
+      if (error) {
+        console.error('獲取用戶失敗:', error);
+        alert('無法獲取用戶列表: ' + error.message);
+      } else {
+        setUsers(data || []);
+        console.log(`✅ 已載入 ${data?.length || 0} 個用戶`);
+        console.log('用戶列表詳細:', data?.map(u => ({ 
+          id: u.id, 
+          email: u.email, 
+          name: u.name,
+          role: u.role,
+          created_at: u.created_at
+        })));
+        
+        // 額外檢查：看看是否只有當前用戶
+        const currentUserInList = data?.find(u => u.id === authUser?.id);
+        console.log('當前用戶在列表中:', currentUserInList);
+        const otherUsers = data?.filter(u => u.id !== authUser?.id);
+        console.log('其他用戶數量:', otherUsers?.length);
+        console.log('其他用戶:', otherUsers);
+      }
+    } catch (err) {
+      console.error('fetchUsers 異常錯誤:', err);
+      alert('獲取用戶列表時發生異常: ' + err.message);
+    }
+    
     setLoading(false);
+    console.log('=== fetchUsers 結束 ===');
   }
 
   async function addNewUser(e) {
