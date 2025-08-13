@@ -1,10 +1,16 @@
--- 更新 commission_summary 視圖以正確顯示 commission_payouts 的資料
--- 確保分潤管理頁面顯示正確的已撥款和待撥款金額
+-- 修復 commission_summary 視圖，移除不存在的 updated_at 欄位
+-- 先檢查 commissions 表的實際結構
 
--- 1. 先刪除舊視圖
+-- 1. 查看 commissions 表的欄位
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns 
+WHERE table_name = 'commissions' 
+ORDER BY ordinal_position;
+
+-- 2. 先刪除舊視圖
 DROP VIEW IF EXISTS commission_summary CASCADE;
 
--- 2. 重新創建視圖
+-- 3. 重新創建視圖（不包含 updated_at）
 CREATE VIEW commission_summary AS
 SELECT 
     c.id,
@@ -36,7 +42,7 @@ GROUP BY
     c.status,
     c.created_at;
 
--- 3. 檢查視圖是否創建成功
+-- 4. 檢查視圖創建結果
 SELECT 
     schemaname,
     viewname,
@@ -44,14 +50,15 @@ SELECT
 FROM pg_views 
 WHERE viewname = 'commission_summary';
 
--- 4. 測試視圖查詢
+-- 5. 測試視圖查詢
 SELECT 
     id,
     amount,
     total_paid_amount,
     remaining_amount,
     paid_percentage,
-    payout_count
+    payout_count,
+    last_payout_date
 FROM commission_summary 
 ORDER BY created_at DESC 
 LIMIT 5;
