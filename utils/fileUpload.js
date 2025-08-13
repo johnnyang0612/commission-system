@@ -81,27 +81,76 @@ export async function uploadFile(file, bucket = 'documents', folder = '', allowe
 }
 
 /**
- * 刪除檔案
+ * 軟刪除檔案（標記為已刪除，但保留230天）
+ * @param {string} bucket - 儲存桶名稱
+ * @param {string} filePath - 檔案路徑
+ * @param {Object} metadata - 文件元數據 { fileName, fileSize, fileType, deletedBy, projectId, reason }
+ * @returns {Object} { success, error }
+ */
+export async function softDeleteFile(bucket, filePath, metadata = {}) {
+  try {
+    // 記錄到軟刪除表
+    const { error: dbError } = await supabase
+      .from('deleted_files')
+      .insert([{
+        original_file_path: filePath,
+        bucket_name: bucket,
+        file_name: metadata.fileName || filePath.split('/').pop(),
+        file_size: metadata.fileSize || null,
+        file_type: metadata.fileType || null,
+        deleted_by: metadata.deletedBy || 'unknown',
+        project_id: metadata.projectId || null,
+        cost_id: metadata.costId || null,
+        document_id: metadata.documentId || null,
+        reason: metadata.reason || '用戶刪除'
+      }]);
+
+    if (dbError) {
+      console.error('記錄軟刪除失敗:', dbError);
+      return { success: false, error: dbError.message };
+    }
+
+    console.log(`文件已軟刪除: ${filePath}，將在230天後永久刪除`);
+    return { success: true, message: '文件已刪除，將在230天後永久清除' };
+  } catch (error) {
+    console.error('軟刪除過程發生錯誤:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 永久刪除檔案（立即從 Storage 移除）
  * @param {string} bucket - 儲存桶名稱
  * @param {string} filePath - 檔案路徑
  * @returns {Object} { success, error }
  */
-export async function deleteFile(bucket, filePath) {
+export async function permanentDeleteFile(bucket, filePath) {
   try {
     const { data, error } = await supabase.storage
       .from(bucket)
       .remove([filePath]);
 
     if (error) {
-      console.error('刪除失敗:', error);
+      console.error('永久刪除失敗:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error) {
-    console.error('刪除過程發生錯誤:', error);
+    console.error('永久刪除過程發生錯誤:', error);
     return { success: false, error: error.message };
   }
+}
+
+/**
+ * 舊的刪除函數，現在調用軟刪除
+ * @param {string} bucket - 儲存桶名稱
+ * @param {string} filePath - 檔案路徑
+ * @returns {Object} { success, error }
+ */
+export async function deleteFile(bucket, filePath) {
+  // 默認使用軟刪除
+  return softDeleteFile(bucket, filePath);
 }
 
 /**

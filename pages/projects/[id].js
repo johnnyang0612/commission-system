@@ -2155,7 +2155,7 @@ export default function ProjectDetail() {
                 bucket={STORAGE_BUCKETS.INVOICES}
                 folder={`${FOLDER_STRUCTURE.COSTS}/${new Date().getFullYear()}/${id}`}
                 currentFiles={costForm.uploaded_files}
-                maxFiles={5}
+                maxFiles={50}
                 label="上傳發票/收據"
               />
             </div>

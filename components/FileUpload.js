@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { uploadFile, deleteFile, ALLOWED_FILE_TYPES, STORAGE_BUCKETS, FOLDER_STRUCTURE } from '../utils/fileUpload';
+import { uploadFile, softDeleteFile, ALLOWED_FILE_TYPES, STORAGE_BUCKETS, FOLDER_STRUCTURE } from '../utils/fileUpload';
 
 export default function FileUpload({ 
   onFileUploaded, 
@@ -7,10 +7,12 @@ export default function FileUpload({
   bucket = STORAGE_BUCKETS.DOCUMENTS,
   folder = '',
   allowedTypes = ALLOWED_FILE_TYPES.all,
-  maxFiles = 1,
+  maxFiles = 50,
   currentFiles = [],
   disabled = false,
-  label = '選擇檔案'
+  label = '選擇檔案',
+  projectId = null,
+  userId = null
 }) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -67,17 +69,26 @@ export default function FileUpload({
   };
 
   const handleFileDelete = async (fileInfo) => {
-    const confirmed = confirm(`確定要刪除檔案「${fileInfo.originalName || fileInfo.fileName}」嗎？`);
+    const confirmed = confirm(`確定要刪除檔案「${fileInfo.originalName || fileInfo.fileName}」嗎？\n\n文件將會被移除但保留230天，之後會永久刪除。`);
     if (!confirmed) return;
 
     try {
-      const result = await deleteFile(fileInfo.bucket || bucket, fileInfo.filePath);
+      const metadata = {
+        fileName: fileInfo.originalName || fileInfo.fileName,
+        fileSize: fileInfo.fileSize,
+        fileType: fileInfo.fileType,
+        deletedBy: userId || 'unknown',
+        projectId: projectId,
+        reason: '用戶手動刪除'
+      };
+
+      const result = await softDeleteFile(fileInfo.bucket || bucket, fileInfo.filePath, metadata);
       
       if (result.success) {
         if (onFileDeleted) {
           onFileDeleted(fileInfo);
         }
-        alert('檔案刪除成功！');
+        alert(result.message || '檔案已刪除，將在230天後永久清除');
       } else {
         throw new Error(result.error);
       }

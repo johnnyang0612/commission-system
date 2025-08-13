@@ -475,7 +475,7 @@ export default function ProjectDocuments({ projectId, userRole }) {
             bucket={STORAGE_BUCKETS.DOCUMENTS}
             folder={`${FOLDER_STRUCTURE.PROJECTS}/${projectId}/documents`}
             currentFiles={documentForm.uploaded_files}
-            maxFiles={10}
+            maxFiles={50}
             label="上傳文件"
           />
 
