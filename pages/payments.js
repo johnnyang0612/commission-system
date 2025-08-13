@@ -67,22 +67,13 @@ export default function Payments() {
   async function fetchProjects() {
     if (!supabase) return;
     
-    let query = supabase.from('projects').select('*');
+    // 使用新的 payment_commission_summary 視圖，包含收款和撥款統計
+    const { data, error } = await supabase
+      .from('payment_commission_summary')
+      .select('*')
+      .order('project_code', { ascending: false });
     
-    // Apply role-based filtering for project selection
-    const user = getCurrentUser();
-    const role = getCurrentUserRole();
-    
-    // 暫時移除角色過濾，確保專案資料可以正常載入
-    if (role === 'sales') {
-      // query = query.eq('assigned_to', user.id);
-    } else if (role === 'leader') {
-      // query = query.or(`assigned_to.eq.${user.id},manager_id.eq.${user.id}`);
-    }
-    
-    const { data, error } = await query.order('created_at', { ascending: false });
-    
-    if (error) console.error(error);
+    if (error) console.error('獲取專案統計失敗:', error);
     else setProjects(data || []);
   }
 
@@ -215,10 +206,15 @@ export default function Payments() {
   };
 
   const calculatePaymentProgress = (project) => {
-    const projectPayments = payments.filter(p => p.project_id === project.id);
-    const totalPaid = projectPayments.reduce((sum, p) => sum + p.amount, 0);
-    const percentage = project.amount ? (totalPaid / project.amount * 100).toFixed(1) : 0;
-    return { totalPaid, percentage };
+    // 使用 payment_commission_summary 視圖的統計數據
+    return {
+      totalPaid: project.total_received || 0,
+      percentage: project.payment_percentage || 0,
+      totalCommissionPaid: project.total_commission_paid || 0,
+      commissionPercentage: project.commission_percentage || 0,
+      receivedInstallments: project.received_installments || 0,
+      commissionInstallments: project.commission_installments || 0
+    };
   };
 
   return (

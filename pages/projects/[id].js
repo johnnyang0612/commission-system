@@ -1337,10 +1337,11 @@ export default function ProjectDetail() {
               const paidCosts = costs.filter(cost => cost.is_paid).reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
               const unpaidCosts = costs.filter(cost => !cost.is_paid).reduce((sum, cost) => sum + parseFloat(cost.amount), 0);
               const totalCosts = paidCosts + unpaidCosts;
-              const totalCommissionAmount = commissions.length > 0 ? commissions[0].amount : 0;
+              const totalCommissionAmount = commissions.length > 0 ? parseFloat(commissions[0].amount || 0) : 0;
               // 預期利潤 = 總案金額 - 分潤總額 - 已支出成本 - 待支出成本
-              const expectedProfit = project.amount - totalCommissionAmount - totalCosts;
-              const profitMargin = project.amount > 0 ? ((expectedProfit / project.amount) * 100).toFixed(1) : 0;
+              const projectAmount = parseFloat(project.amount || 0);
+              const expectedProfit = projectAmount - totalCommissionAmount - totalCosts;
+              const profitMargin = projectAmount > 0 ? ((expectedProfit / projectAmount) * 100).toFixed(1) : 0;
               
               return (
                 <>
@@ -2036,9 +2037,9 @@ export default function ProjectDetail() {
         {canViewFinancialData(userRole) && commissions.length > 0 && (() => {
           // 使用 commission_summary 視圖的資料
           const commission = commissions[0];
-          const totalPaidCommission = commission.total_paid_amount || 0;
-          const totalCommissionAmount = commission.amount || 0;
-          const remainingCommission = commission.remaining_amount || 0;
+          const totalPaidCommission = parseFloat(commission.total_paid_amount || 0);
+          const totalCommissionAmount = parseFloat(commission.amount || 0);
+          const remainingCommission = parseFloat(commission.remaining_amount || 0);
           
           return (
             <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
@@ -2072,7 +2073,11 @@ export default function ProjectDetail() {
                     color: 'white',
                     fontSize: '0.875rem'
                   }}>
-                    {remainingCommission <= 0 ? '已全額撥款' : `待撥 ${((remainingCommission / totalCommissionAmount) * 100).toFixed(1)}%`}
+                    {remainingCommission <= 0 ? '已全額撥款' : 
+                     totalCommissionAmount > 0 ? 
+                       `待撥 ${((remainingCommission / totalCommissionAmount) * 100).toFixed(1)}%` : 
+                       '待計算'
+                    }
                   </span>
                 </div>
               </div>
