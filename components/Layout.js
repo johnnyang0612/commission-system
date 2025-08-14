@@ -66,12 +66,26 @@ export default function Layout({ children }) {
             川輝科技｜業務分潤管理系統
           </h1>
           <div style={{ display: 'flex', gap: '2rem' }}>
+            <Link href="/dashboard" style={{
+              color: isActive('/dashboard') ? '#3498db' : 'white',
+              textDecoration: 'none',
+              fontWeight: isActive('/dashboard') ? 'bold' : 'normal'
+            }}>
+              儀表板
+            </Link>
             <Link href="/" style={{
               color: isActive('/') ? '#3498db' : 'white',
               textDecoration: 'none',
               fontWeight: isActive('/') ? 'bold' : 'normal'
             }}>
               專案管理
+            </Link>
+            <Link href="/prospects" style={{
+              color: isActive('/prospects') ? '#3498db' : 'white',
+              textDecoration: 'none',
+              fontWeight: isActive('/prospects') ? 'bold' : 'normal'
+            }}>
+              洽談管理
             </Link>
             <Link href="/users" style={{
               color: isActive('/users') ? '#3498db' : 'white',
