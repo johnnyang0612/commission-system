@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
-import supabase from '../utils/supabaseClient';
+import { supabase } from '../utils/supabaseClient';
 import { getCurrentUser, USER_ROLES, hasPermission, PERMISSIONS } from '../utils/permissions';
 import styles from '../styles/UserManagement.module.css';
 
@@ -212,7 +212,7 @@ export default function UserManagement() {
     <Layout>
       <div className={styles.container}>
         <div className={styles.pageHeader}>
-          <h1>用戶管理</h1>
+          <h2>用戶管理</h2>
           <div className={styles.headerActions}>
             {canManageUsers() && (
               <button 

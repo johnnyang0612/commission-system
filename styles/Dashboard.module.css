@@ -13,11 +13,11 @@
   align-items: center;
 }
 
-.pageHeader h1 {
-  font-size: 32px;
+.pageHeader h2 {
+  font-size: 24px;
   color: #1f2937;
   margin: 0 0 10px 0;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .welcome {

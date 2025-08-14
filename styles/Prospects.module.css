@@ -12,10 +12,11 @@
   border-bottom: 2px solid #e5e7eb;
 }
 
-.pageHeader h1 {
-  font-size: 28px;
+.pageHeader h2 {
+  font-size: 22px;
   color: #1f2937;
   margin: 0;
+  font-weight: 600;
 }
 
 .headerActions {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
-import supabase from '../utils/supabaseClient';
+import { supabase } from '../utils/supabaseClient';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
@@ -279,7 +279,7 @@ export default function Prospects() {
     <Layout>
       <div className={styles.container}>
         <div className={styles.pageHeader}>
-          <h1>未成案專案管理（Sales Pipeline）</h1>
+          <h2>未成案專案管理（Sales Pipeline）</h2>
           <div className={styles.headerActions}>
             <div className={styles.statistics}>
               <div className={styles.statItem}>

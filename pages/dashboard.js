@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
-import supabase from '../utils/supabaseClient';
+import { supabase } from '../utils/supabaseClient';
 import { getCurrentUser, USER_ROLES } from '../utils/permissions';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -102,10 +102,25 @@ export default function Dashboard() {
     try {
       // 載入公司總覽數據
       const [projectsRes, prospectsRes, commissionsRes, paymentsRes] = await Promise.all([
-        supabase.from('projects').select('amount, type, created_at'),
-        supabase.from('prospects').select('estimated_amount, stage, created_at'),
-        supabase.from('commissions').select('amount, status'),
-        supabase.from('project_installments').select('amount, status, paid_date')
+        supabase.from('projects').select('amount, type, created_at').then(res => {
+          console.log('Projects data:', res);
+          return res;
+        }),
+        supabase.from('prospects').select('estimated_amount, stage, created_at').then(res => {
+          console.log('Prospects data:', res);
+          return res;
+        }).catch(err => {
+          console.warn('Prospects table might not exist yet:', err);
+          return { data: [], error: null };
+        }),
+        supabase.from('commissions').select('amount, status').then(res => {
+          console.log('Commissions data:', res);
+          return res;
+        }),
+        supabase.from('project_installments').select('amount, status, paid_date').then(res => {
+          console.log('Project installments data:', res);
+          return res;
+        })
       ]);
 
       // 計算總覽統計
@@ -593,7 +608,7 @@ export default function Dashboard() {
     <div className={styles.dashboard}>
       <div className={styles.pageHeader}>
         <div>
-          <h1>公司營運總覽</h1>
+          <h2>公司營運總覽</h2>
           <p className={styles.welcome}>歡迎回來，{user?.name}</p>
         </div>
         <button 
