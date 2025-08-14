@@ -87,12 +87,12 @@ export default function Layout({ children }) {
             }}>
               洽談管理
             </Link>
-            <Link href="/users" style={{
-              color: isActive('/users') ? '#3498db' : 'white',
+            <Link href="/user-management" style={{
+              color: isActive('/user-management') ? '#3498db' : 'white',
               textDecoration: 'none',
-              fontWeight: isActive('/users') ? 'bold' : 'normal'
+              fontWeight: isActive('/user-management') ? 'bold' : 'normal'
             }}>
-              業務人員
+              用戶管理
             </Link>
             <Link href="/profile" style={{
               color: isActive('/profile') ? '#3498db' : 'white',
@@ -121,13 +121,6 @@ export default function Layout({ children }) {
               fontWeight: isActive('/maintenance') ? 'bold' : 'normal'
             }}>
               維護管理
-            </Link>
-            <Link href="/admin/users" style={{
-              color: isActive('/admin/users') ? '#3498db' : 'white',
-              textDecoration: 'none',
-              fontWeight: isActive('/admin/users') ? 'bold' : 'normal'
-            }}>
-              用戶管理
             </Link>
           </div>
           
