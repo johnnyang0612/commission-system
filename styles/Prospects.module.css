@@ -3,7 +3,7 @@
   max-width: 100%;
 }
 
-.header {
+.pageHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -12,7 +12,7 @@
   border-bottom: 2px solid #e5e7eb;
 }
 
-.header h1 {
+.pageHeader h1 {
   font-size: 28px;
   color: #1f2937;
   margin: 0;

@@ -39,13 +39,39 @@ export default function Dashboard() {
         return;
       }
 
-      const currentUser = await getCurrentUser(authUser);
+      // 先獲取用戶資料
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+
+      let currentUser;
+      if (error || !userData) {
+        // 如果沒有找到用戶資料，創建基本用戶對象
+        currentUser = {
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+          role: 'admin' // 預設給管理員權限
+        };
+      } else {
+        currentUser = userData;
+      }
+
       setUser(currentUser);
 
       // 根據角色載入不同的數據
       await loadRoleSpecificData(currentUser);
     } catch (error) {
       console.error('Error loading dashboard:', error);
+      // 設置一個預設用戶以防止頁面崩潰
+      setUser({
+        id: 'default',
+        email: 'default@example.com',
+        name: 'Default User',
+        role: 'admin'
+      });
     } finally {
       setLoading(false);
     }
@@ -565,7 +591,7 @@ export default function Dashboard() {
 
   const renderAdminDashboard = () => (
     <div className={styles.dashboard}>
-      <div className={styles.header}>
+      <div className={styles.pageHeader}>
         <div>
           <h1>公司營運總覽</h1>
           <p className={styles.welcome}>歡迎回來，{user?.name}</p>

@@ -65,13 +65,24 @@ export default function Prospects() {
   };
 
   const fetchUsers = async () => {
-    const { data } = await supabase
-      .from('users')
-      .select('id, name, role')
-      .in('role', ['sales', 'leader'])
-      .order('name');
-    
-    setUsers(data || []);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, role')
+        .in('role', ['sales', 'leader'])
+        .order('name');
+      
+      if (error) {
+        console.error('Error fetching users:', error);
+        setUsers([]);
+        return;
+      }
+      
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setUsers([]);
+    }
   };
 
   const fetchProspects = async () => {
@@ -96,14 +107,21 @@ export default function Prospects() {
 
   const fetchStatistics = async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('prospect_statistics')
         .select('*')
         .single();
       
+      if (error) {
+        console.warn('Error fetching statistics:', error);
+        setStatistics(null);
+        return;
+      }
+      
       setStatistics(data);
     } catch (error) {
       console.error('Error fetching statistics:', error);
+      setStatistics(null);
     }
   };
 
@@ -209,7 +227,7 @@ export default function Prospects() {
       project_name: '',
       estimated_amount: '',
       commission_rate: 15,
-      owner_id: '',
+      owner_id: user?.id || '', // 預設為當前使用者
       stage: '初談',
       expected_sign_date: '',
       source: '',
@@ -260,7 +278,7 @@ export default function Prospects() {
   return (
     <Layout>
       <div className={styles.container}>
-        <div className={styles.header}>
+        <div className={styles.pageHeader}>
           <h1>未成案專案管理（Sales Pipeline）</h1>
           <div className={styles.headerActions}>
             <div className={styles.statistics}>
@@ -545,14 +563,15 @@ export default function Prospects() {
                   </div>
                   
                   <div className={styles.formGroup}>
-                    <label>負責人</label>
+                    <label>負責人 *</label>
                     <select
                       value={formData.owner_id}
                       onChange={(e) => setFormData({...formData, owner_id: e.target.value})}
+                      required
                     >
-                      <option value="">請選擇</option>
+                      <option value="">請選擇負責人</option>
                       {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
+                        <option key={u.id} value={u.id}>{u.name} ({u.role === 'sales' ? '業務' : '主管'})</option>
                       ))}
                     </select>
                   </div>
