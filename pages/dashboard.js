@@ -117,23 +117,44 @@ export default function Dashboard() {
           console.log('Commissions data:', res);
           return res;
         }),
-        supabase.from('project_installments').select('amount, status, paid_date').then(res => {
+        supabase.from('project_installments').select('amount, actual_amount, status, payment_date').then(res => {
           console.log('Project installments data:', res);
           return res;
         })
       ]);
 
-      // 計算總覽統計
-      const totalRevenue = projectsRes.data?.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) || 0;
+      // 計算總覽統計（含稅收入）
+      console.log('Raw data lengths:', {
+        projects: projectsRes.data?.length || 0,
+        prospects: prospectsRes.data?.length || 0,
+        commissions: commissionsRes.data?.length || 0,
+        payments: paymentsRes.data?.length || 0
+      });
+
+      const totalRevenue = projectsRes.data?.reduce((sum, p) => {
+        const baseAmount = parseFloat(p.amount || 0);
+        const taxAmount = baseAmount * 0.05; // 5% 營業稅
+        return sum + baseAmount + taxAmount;
+      }, 0) || 0;
+      
       const totalPipeline = prospectsRes.data
         ?.filter(p => !['已失單', '已轉換'].includes(p.stage))
         .reduce((sum, p) => sum + parseFloat(p.estimated_amount || 0), 0) || 0;
+      
+      // 計算所有分潤金額，不僅僅是已付的
       const totalCommissions = commissionsRes.data
-        ?.filter(c => c.status === 'paid')
-        .reduce((sum, c) => sum + parseFloat(c.amount || 0), 0) || 0;
+        ?.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0) || 0;
+      
       const conversionRate = prospectsRes.data?.length > 0
         ? (prospectsRes.data.filter(p => p.stage === '已轉換').length / prospectsRes.data.length * 100).toFixed(1)
         : 0;
+
+      console.log('Calculated values:', {
+        totalRevenue,
+        totalPipeline,
+        totalCommissions,
+        conversionRate
+      });
 
       // 載入月度營收趨勢
       const monthlyRevenue = generateMonthlyRevenue(paymentsRes.data);
@@ -350,11 +371,11 @@ export default function Dashboard() {
 
     // 統計每月收款
     payments?.forEach(payment => {
-      if (payment.paid_date && payment.status === 'paid') {
-        const date = new Date(payment.paid_date);
+      if (payment.payment_date && payment.status === 'paid') {
+        const date = new Date(payment.payment_date);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[key] !== undefined) {
-          monthlyData[key] += parseFloat(payment.amount || 0);
+          monthlyData[key] += parseFloat(payment.actual_amount || payment.amount || 0);
         }
       }
     });
@@ -558,11 +579,11 @@ export default function Dashboard() {
 
     // 統計收入
     payments?.forEach(payment => {
-      if (payment.paid_date && payment.status === 'paid') {
-        const date = new Date(payment.paid_date);
+      if (payment.payment_date && payment.status === 'paid') {
+        const date = new Date(payment.payment_date);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[key]) {
-          monthlyData[key].revenue += parseFloat(payment.amount || 0);
+          monthlyData[key].revenue += parseFloat(payment.actual_amount || payment.amount || 0);
         }
       }
     });
@@ -727,9 +748,11 @@ export default function Dashboard() {
 
   const renderLeaderDashboard = () => (
     <div className={styles.dashboard}>
-      <div className={styles.header}>
-        <h1>團隊管理儀表板</h1>
-        <p className={styles.welcome}>歡迎回來，{user?.name}</p>
+      <div className={styles.pageHeader}>
+        <div>
+          <h2>團隊管理儀表板</h2>
+          <p className={styles.welcome}>歡迎回來，{user?.name}</p>
+        </div>
       </div>
 
       <div className={styles.chartsGrid}>
@@ -786,9 +809,11 @@ export default function Dashboard() {
 
   const renderSalesDashboard = () => (
     <div className={styles.dashboard}>
-      <div className={styles.header}>
-        <h1>我的業績儀表板</h1>
-        <p className={styles.welcome}>歡迎回來，{user?.name}</p>
+      <div className={styles.pageHeader}>
+        <div>
+          <h2>我的業績儀表板</h2>
+          <p className={styles.welcome}>歡迎回來，{user?.name}</p>
+        </div>
       </div>
 
       <div className={styles.statsGrid}>
@@ -888,9 +913,11 @@ export default function Dashboard() {
 
   const renderFinanceDashboard = () => (
     <div className={styles.dashboard}>
-      <div className={styles.header}>
-        <h1>財務管理儀表板</h1>
-        <p className={styles.welcome}>歡迎回來，{user?.name}</p>
+      <div className={styles.pageHeader}>
+        <div>
+          <h2>財務管理儀表板</h2>
+          <p className={styles.welcome}>歡迎回來，{user?.name}</p>
+        </div>
       </div>
 
       <div className={styles.statsGrid}>
@@ -995,9 +1022,11 @@ export default function Dashboard() {
 
   const renderDefaultDashboard = () => (
     <div className={styles.dashboard}>
-      <div className={styles.header}>
-        <h1>歡迎使用分潤管理系統</h1>
-        <p className={styles.welcome}>歡迎回來，{user?.name || user?.email}</p>
+      <div className={styles.pageHeader}>
+        <div>
+          <h2>歡迎使用分潤管理系統</h2>
+          <p className={styles.welcome}>歡迎回來，{user?.name || user?.email}</p>
+        </div>
       </div>
       
       <div className={styles.quickLinks}>
