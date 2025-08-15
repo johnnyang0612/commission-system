@@ -1333,8 +1333,46 @@ export default function Prospects() {
   const handleBulkFollowupUpdate = async () => {
     if (selectedProspects.length === 0) return;
     
-    const newDate = prompt('請輸入新的追蹤日期 (YYYY-MM-DD):');
-    if (!newDate) return;
+    // 快速日期選項 (與單個案件相同)
+    const quickDateOptions = [
+      { label: '今天', days: 0 },
+      { label: '明天', days: 1 },
+      { label: '3天後', days: 3 },
+      { label: '1週後', days: 7 },
+      { label: '2週後', days: 14 },
+      { label: '1個月後', days: 30 }
+    ];
+    
+    const today = new Date();
+    const options = quickDateOptions.map((option, index) => {
+      const date = new Date(today);
+      date.setDate(date.getDate() + option.days);
+      return `${index + 1}. ${option.label} (${date.getMonth() + 1}/${date.getDate()})`;
+    }).join('\n');
+    
+    const choice = prompt(
+      `批次設定追蹤日期 (${selectedProspects.length} 個案件):\n\n${options}\n7. 自定義日期\n\n請輸入編號:`
+    );
+    
+    if (!choice) return;
+    
+    let newDate;
+    const choiceNum = parseInt(choice);
+    
+    if (choiceNum >= 1 && choiceNum <= 6) {
+      // 使用快速選項
+      const selectedOption = quickDateOptions[choiceNum - 1];
+      const date = new Date(today);
+      date.setDate(date.getDate() + selectedOption.days);
+      newDate = date.toISOString().split('T')[0];
+    } else if (choiceNum === 7) {
+      // 自定義日期
+      newDate = prompt('請輸入追蹤日期 (YYYY-MM-DD):');
+      if (!newDate) return;
+    } else {
+      alert('無效的選項');
+      return;
+    }
     
     try {
       const updates = selectedProspects.map(id => 
@@ -1350,7 +1388,11 @@ export default function Prospects() {
       await Promise.all(updates);
       setSelectedProspects([]);
       fetchProspects();
-      alert(`已更新 ${selectedProspects.length} 個案件的追蹤日期！`);
+      
+      // 友善的確認訊息
+      const selectedDate = new Date(newDate);
+      const dateStr = `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
+      alert(`✅ 已更新 ${selectedProspects.length} 個案件的追蹤日期為：${dateStr}！`);
     } catch (error) {
       alert('批次更新追蹤日期失敗：' + error.message);
     }
@@ -1514,11 +1556,48 @@ export default function Prospects() {
 
   // 快速動作處理函數
   const handleQuickFollowupUpdate = async (prospect) => {
-    const currentDate = prospect.next_followup_date ? 
-      new Date(prospect.next_followup_date).toISOString().split('T')[0] : '';
+    // 快速日期選項
+    const quickDateOptions = [
+      { label: '今天', days: 0 },
+      { label: '明天', days: 1 },
+      { label: '3天後', days: 3 },
+      { label: '1週後', days: 7 },
+      { label: '2週後', days: 14 },
+      { label: '1個月後', days: 30 }
+    ];
     
-    const newDate = prompt('請輸入新的追蹤日期 (YYYY-MM-DD):', currentDate);
-    if (!newDate) return;
+    const today = new Date();
+    const options = quickDateOptions.map((option, index) => {
+      const date = new Date(today);
+      date.setDate(date.getDate() + option.days);
+      return `${index + 1}. ${option.label} (${date.getMonth() + 1}/${date.getDate()})`;
+    }).join('\n');
+    
+    const choice = prompt(
+      `選擇追蹤日期 - ${prospect.client_name}:\n\n${options}\n7. 自定義日期\n\n請輸入編號:`
+    );
+    
+    if (!choice) return;
+    
+    let newDate;
+    const choiceNum = parseInt(choice);
+    
+    if (choiceNum >= 1 && choiceNum <= 6) {
+      // 使用快速選項
+      const selectedOption = quickDateOptions[choiceNum - 1];
+      const date = new Date(today);
+      date.setDate(date.getDate() + selectedOption.days);
+      newDate = date.toISOString().split('T')[0];
+    } else if (choiceNum === 7) {
+      // 自定義日期
+      const currentDate = prospect.next_followup_date ? 
+        new Date(prospect.next_followup_date).toISOString().split('T')[0] : '';
+      newDate = prompt('請輸入追蹤日期 (YYYY-MM-DD):', currentDate);
+      if (!newDate) return;
+    } else {
+      alert('無效的選項');
+      return;
+    }
     
     try {
       const { error } = await supabase
@@ -1532,7 +1611,11 @@ export default function Prospects() {
       if (error) throw error;
       
       fetchProspects(); // 重新載入數據
-      alert('追蹤日期已更新！');
+      
+      // 友善的確認訊息
+      const selectedDate = new Date(newDate);
+      const dateStr = `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
+      alert(`✅ 追蹤日期已設定為：${dateStr}`);
     } catch (error) {
       console.error('Error updating followup date:', error);
       alert('更新追蹤日期失敗：' + error.message);
