@@ -25,7 +25,9 @@ export default function Prospects() {
   const [prospects, setProspects] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('board'); // 'board' or 'table'
+  const [viewMode, setViewMode] = useState(
+    typeof window !== 'undefined' && window.innerWidth <= 768 ? 'table' : 'board'
+  ); // 'board' or 'table' - mobile defaults to table
   const [showModal, setShowModal] = useState(false);
   const [editingProspect, setEditingProspect] = useState(null);
   const [formData, setFormData] = useState({
@@ -37,7 +39,9 @@ export default function Prospects() {
     stage: '初談',
     expected_sign_date: '',
     source: '',
-    note: ''
+    note: '',
+    use_fixed_commission: false,
+    fixed_commission_percentage: ''
   });
   const [statistics, setStatistics] = useState(null);
 
@@ -134,32 +138,7 @@ export default function Prospects() {
     
     const newStage = destination.droppableId;
     
-    // Update local state optimistically
-    const updatedProspects = prospects.map(p => 
-      p.id === draggableId ? { ...p, stage: newStage } : p
-    );
-    setProspects(updatedProspects);
-    
-    // Update database
-    const { error } = await supabase
-      .from('prospects')
-      .update({ stage: newStage, updated_at: new Date().toISOString() })
-      .eq('id', draggableId);
-    
-    if (error) {
-      console.error('Error updating prospect stage:', error);
-      fetchProspects(); // Revert on error
-    } else {
-      // Log activity
-      await supabase.from('prospect_activities').insert({
-        prospect_id: draggableId,
-        user_id: user?.id,
-        activity_type: 'stage_change',
-        old_value: source.droppableId,
-        new_value: newStage,
-        description: `階段從 ${source.droppableId} 變更為 ${newStage}`
-      });
-    }
+    await updateProspectStage(draggableId, newStage, source.droppableId);
   };
 
   const handleSubmit = async (e) => {
@@ -231,7 +210,9 @@ export default function Prospects() {
       stage: '初談',
       expected_sign_date: '',
       source: '',
-      note: ''
+      note: '',
+      use_fixed_commission: false,
+      fixed_commission_percentage: ''
     });
     setEditingProspect(null);
   };
@@ -247,7 +228,9 @@ export default function Prospects() {
       stage: prospect.stage,
       expected_sign_date: prospect.expected_sign_date || '',
       source: prospect.source || '',
-      note: prospect.note || ''
+      note: prospect.note || '',
+      use_fixed_commission: prospect.use_fixed_commission || false,
+      fixed_commission_percentage: prospect.fixed_commission_percentage || ''
     });
     setShowModal(true);
   };
@@ -271,6 +254,76 @@ export default function Prospects() {
     return prospects
       .filter(p => !['已失單', '已轉換'].includes(p.stage))
       .reduce((sum, p) => sum + (parseFloat(p.estimated_amount || 0) * parseFloat(p.commission_rate || 0) / 100), 0);
+  };
+
+  // 計算分潤比例（階梯式 vs 固定）
+  const calculateCommissionRate = (amount, useFixed = false, fixedRate = '') => {
+    if (useFixed && fixedRate) {
+      return parseFloat(fixedRate);
+    }
+    
+    // 階梯式分潤比例
+    if (amount <= 100000) return 35;
+    if (amount <= 300000) return 30;
+    if (amount <= 600000) return 25;
+    if (amount <= 1000000) return 20;
+    return 10;
+  };
+
+  // 當金額變化時自動計算分潤比例
+  const handleAmountChange = (amount) => {
+    const newAmount = parseFloat(amount) || 0;
+    let newCommissionRate = formData.commission_rate;
+    
+    if (!formData.use_fixed_commission) {
+      newCommissionRate = calculateCommissionRate(newAmount);
+    }
+    
+    setFormData({
+      ...formData,
+      estimated_amount: amount,
+      commission_rate: newCommissionRate
+    });
+  };
+
+  // 處理表格模式的階段變更
+  const handleStageChange = async (prospectId, newStage) => {
+    const prospect = prospects.find(p => p.id === prospectId);
+    const oldStage = prospect?.stage;
+    
+    if (oldStage === newStage) return;
+    
+    await updateProspectStage(prospectId, newStage, oldStage);
+  };
+
+  // 共用的階段更新函數
+  const updateProspectStage = async (prospectId, newStage, oldStage) => {
+    // Update local state optimistically
+    const updatedProspects = prospects.map(p => 
+      p.id === prospectId ? { ...p, stage: newStage } : p
+    );
+    setProspects(updatedProspects);
+
+    // Update in database
+    const { error } = await supabase
+      .from('prospects')
+      .update({ stage: newStage, updated_at: new Date().toISOString() })
+      .eq('id', prospectId);
+    
+    if (error) {
+      console.error('Error updating prospect stage:', error);
+      fetchProspects(); // Revert on error
+      return;
+    }
+
+    // Log the change
+    await supabase.from('prospect_activities').insert({
+      prospect_id: prospectId,
+      activity_type: 'stage_change',
+      old_value: oldStage,
+      new_value: newStage,
+      description: `階段從 ${oldStage} 變更為 ${newStage}`
+    });
   };
 
   if (loading) return <div>載入中...</div>;
@@ -462,14 +515,25 @@ export default function Prospects() {
                       </td>
                       <td>{prospect.owner?.name || '未指派'}</td>
                       <td>
-                        <span 
-                          className={styles.stageBadge}
-                          style={{ 
-                            backgroundColor: STAGES.find(s => s.id === prospect.stage)?.color 
+                        <select 
+                          value={prospect.stage}
+                          onChange={(e) => handleStageChange(prospect.id, e.target.value)}
+                          style={{
+                            backgroundColor: STAGES.find(s => s.id === prospect.stage)?.color,
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            fontWeight: '500'
                           }}
                         >
-                          {prospect.stage}
-                        </span>
+                          {STAGES.map(stage => (
+                            <option key={stage.id} value={stage.id} style={{ color: 'black' }}>
+                              {stage.name}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td>
                         {prospect.expected_sign_date 
@@ -544,9 +608,40 @@ export default function Prospects() {
                     <input
                       type="number"
                       value={formData.estimated_amount}
-                      onChange={(e) => setFormData({...formData, estimated_amount: e.target.value})}
+                      onChange={(e) => handleAmountChange(e.target.value)}
                       required
                     />
+                  </div>
+                  
+                  <div className={styles.formGroup}>
+                    <label>分潤計算方式</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="radio"
+                          name="commission_type"
+                          checked={!formData.use_fixed_commission}
+                          onChange={() => {
+                            const newRate = calculateCommissionRate(parseFloat(formData.estimated_amount) || 0);
+                            setFormData({
+                              ...formData, 
+                              use_fixed_commission: false,
+                              commission_rate: newRate
+                            });
+                          }}
+                        />
+                        階梯式分潤 (自動計算)
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="radio"
+                          name="commission_type"
+                          checked={formData.use_fixed_commission}
+                          onChange={() => setFormData({...formData, use_fixed_commission: true})}
+                        />
+                        固定分潤比例
+                      </label>
+                    </div>
                   </div>
                   
                   <div className={styles.formGroup}>
@@ -555,10 +650,25 @@ export default function Prospects() {
                       type="number"
                       min="0"
                       max="100"
-                      value={formData.commission_rate}
-                      onChange={(e) => setFormData({...formData, commission_rate: e.target.value})}
+                      value={formData.use_fixed_commission ? formData.fixed_commission_percentage : formData.commission_rate}
+                      onChange={(e) => {
+                        if (formData.use_fixed_commission) {
+                          setFormData({
+                            ...formData, 
+                            fixed_commission_percentage: e.target.value,
+                            commission_rate: parseFloat(e.target.value) || 0
+                          });
+                        }
+                      }}
+                      disabled={!formData.use_fixed_commission}
+                      placeholder={!formData.use_fixed_commission ? "將根據階梯式自動計算" : "請輸入固定比例"}
                       required
                     />
+                    {!formData.use_fixed_commission && (
+                      <small style={{ color: '#6b7280', fontSize: '12px' }}>
+                        依金額階梯：≤10萬(35%) | 10-30萬(30%) | 30-60萬(25%) | 60-100萬(20%) | >100萬(10%)
+                      </small>
+                    )}
                   </div>
                   
                   <div className={styles.formGroup}>
