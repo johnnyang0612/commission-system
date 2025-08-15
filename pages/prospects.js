@@ -276,65 +276,65 @@ export default function Prospects() {
   if (loading) return <div>載入中...</div>;
 
   return (
-      <div className={styles.container}>
-        <div className={styles.pageHeader}>
-          <h2>未成案專案管理（Sales Pipeline）</h2>
-          <div className={styles.headerActions}>
-            <div className={styles.statistics}>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>總Pipeline價值</span>
-                <span className={styles.statValue}>
-                  NT$ {getPipelineValue().toLocaleString()}
-                </span>
-              </div>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>預估分潤</span>
-                <span className={styles.statValue}>
-                  NT$ {getEstimatedCommission().toLocaleString()}
-                </span>
-              </div>
+    <div className={styles.container}>
+      <div className={styles.pageHeader}>
+        <h2>未成案專案管理（Sales Pipeline）</h2>
+        <div className={styles.headerActions}>
+          <div className={styles.statistics}>
+            <div className={styles.statItem}>
+              <span className={styles.statLabel}>總Pipeline價值</span>
+              <span className={styles.statValue}>
+                NT$ {getPipelineValue().toLocaleString()}
+              </span>
             </div>
-            <div className={styles.viewToggle}>
-              <button 
-                className={viewMode === 'board' ? styles.active : ''}
-                onClick={() => setViewMode('board')}
-              >
-                看板模式
-              </button>
-              <button 
-                className={viewMode === 'table' ? styles.active : ''}
-                onClick={() => setViewMode('table')}
-              >
-                表格模式
-              </button>
+            <div className={styles.statItem}>
+              <span className={styles.statLabel}>預估分潤</span>
+              <span className={styles.statValue}>
+                NT$ {getEstimatedCommission().toLocaleString()}
+              </span>
             </div>
+          </div>
+          <div className={styles.viewToggle}>
             <button 
-              className={styles.exportButton}
-              onClick={() => exportProspectsToExcel(prospects)}
+              className={viewMode === 'board' ? styles.active : ''}
+              onClick={() => setViewMode('board')}
             >
-              📥 匯出Excel
+              看板模式
             </button>
             <button 
-              className={styles.exportButton}
-              onClick={() => exportProspectReportToPDF(statistics, prospects)}
+              className={viewMode === 'table' ? styles.active : ''}
+              onClick={() => setViewMode('table')}
             >
-              📄 匯出PDF
-            </button>
-            <button 
-              className={styles.addButton}
-              onClick={() => {
-                resetForm();
-                setShowModal(true);
-              }}
-            >
-              + 新增洽談案
+              表格模式
             </button>
           </div>
+          <button 
+            className={styles.exportButton}
+            onClick={() => exportProspectsToExcel(prospects)}
+          >
+            📥 匯出Excel
+          </button>
+          <button 
+            className={styles.exportButton}
+            onClick={() => exportProspectReportToPDF(statistics, prospects)}
+          >
+            📄 匯出PDF
+          </button>
+          <button 
+            className={styles.addButton}
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+          >
+            + 新增洽談案
+          </button>
         </div>
+      </div>
 
-        <div className={styles.mainContent}>
-          {viewMode === 'board' ? (
-            <div className={styles.boardContainer}>
+      <div className={styles.mainContent}>
+        {viewMode === 'board' ? (
+          <div className={styles.boardContainer}>
               <DragDropContext onDragEnd={handleDragEnd}>
                 <div className={styles.board}>
                   {STAGES.filter(s => !['已失單', '已轉換'].includes(s.id)).map(stage => (
@@ -632,6 +632,5 @@ export default function Prospects() {
           </div>
         )}
       </div>
-    </div>
   );
 }
