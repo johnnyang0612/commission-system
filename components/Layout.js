@@ -62,9 +62,9 @@ export default function Layout({ children }) {
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <h1 style={{ color: 'white', margin: 0, fontSize: '1.5rem' }}>
-            川輝科技｜業務分潤管理系統
-          </h1>
+          <div style={{ color: 'white', margin: 0, fontSize: '1.2rem', fontWeight: '600' }}>
+            川輝科技
+          </div>
           <div style={{ display: 'flex', gap: '2rem' }}>
             <Link href="/dashboard" style={{
               color: isActive('/dashboard') ? '#3498db' : 'white',
