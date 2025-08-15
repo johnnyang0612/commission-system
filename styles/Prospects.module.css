@@ -118,21 +118,26 @@
   min-height: 600px;
 }
 
-.boardContainer {
+.boardLayout {
   display: flex;
+  flex-direction: column;
   gap: 30px;
 }
 
+.boardContainer {
+  display: flex;
+  width: 100%;
+}
+
 .board {
-  flex: 1;
   display: flex;
   gap: 20px;
-  overflow-x: auto;
-  padding-bottom: 20px;
+  width: 100%;
 }
 
 .column {
-  min-width: 380px;
+  flex: 1;
+  min-width: 450px;
   background: #f9fafb;
   border-radius: 12px;
   overflow: hidden;
@@ -196,7 +201,7 @@
 .cardHeader {
   display: flex;
   justify-content: space-between;
-  align-items: start;
+  align-items: flex-start;
   margin-bottom: 10px;
 }
 
@@ -256,6 +261,12 @@
   margin-top: 8px !important;
 }
 
+.chartsRow {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
 .charts {
   width: 400px;
 }
@@ -265,6 +276,8 @@
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  min-width: 400px;
+  max-width: 600px;
 }
 
 .chart h3 {
@@ -467,12 +480,21 @@
 }
 
 @media (max-width: 1200px) {
-  .boardContainer {
+  .board {
     flex-direction: column;
+  }
+  
+  .column {
+    min-width: 100%;
   }
   
   .charts {
     width: 100%;
+  }
+  
+  .chart {
+    min-width: 100%;
+    max-width: 100%;
   }
 }
 
@@ -492,6 +514,10 @@
   
   .statistics {
     width: 100%;
+  }
+  
+  .boardLayout {
+    gap: 20px;
   }
   
   .board {

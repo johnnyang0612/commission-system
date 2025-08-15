@@ -387,7 +387,8 @@ export default function Prospects() {
 
       <div className={styles.mainContent}>
         {viewMode === 'board' ? (
-          <div className={styles.boardContainer}>
+          <div className={styles.boardLayout}>
+            <div className={styles.boardContainer}>
               <DragDropContext onDragEnd={handleDragEnd}>
                 <div className={styles.board}>
                   {STAGES.filter(s => !['已失單', '已轉換'].includes(s.id)).map(stage => (
@@ -468,25 +469,26 @@ export default function Prospects() {
                   ))}
                 </div>
               </DragDropContext>
-              
-              <div className={styles.charts}>
-                <div className={styles.chart}>
-                  <h3>轉換漏斗</h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <FunnelChart>
-                      <Tooltip />
-                      <Funnel
-                        dataKey="value"
-                        data={getFunnelData()}
-                        isAnimationActive
-                      >
-                        <LabelList position="center" fill="#fff" />
-                      </Funnel>
-                    </FunnelChart>
-                  </ResponsiveContainer>
-                </div>
+            </div>
+            
+            <div className={styles.chartsRow}>
+              <div className={styles.chart}>
+                <h3>轉換漏斗</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <FunnelChart>
+                    <Tooltip />
+                    <Funnel
+                      dataKey="value"
+                      data={getFunnelData()}
+                      isAnimationActive
+                    >
+                      <LabelList position="center" fill="#fff" />
+                    </Funnel>
+                  </FunnelChart>
+                </ResponsiveContainer>
               </div>
             </div>
+          </div>
           ) : (
             <div className={styles.tableContainer}>
               <table className={styles.table}>
@@ -644,32 +646,48 @@ export default function Prospects() {
                     </div>
                   </div>
                   
-                  <div className={styles.formGroup}>
-                    <label>分潤比例 (%) *</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={formData.use_fixed_commission ? formData.fixed_commission_percentage : formData.commission_rate}
-                      onChange={(e) => {
-                        if (formData.use_fixed_commission) {
+                  {formData.use_fixed_commission && (
+                    <div className={styles.formGroup}>
+                      <label>固定分潤比例 (%) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formData.fixed_commission_percentage}
+                        onChange={(e) => {
                           setFormData({
                             ...formData, 
                             fixed_commission_percentage: e.target.value,
                             commission_rate: parseFloat(e.target.value) || 0
                           });
+                        }}
+                        placeholder="請輸入固定分潤比例"
+                        required
+                      />
+                    </div>
+                  )}
+                  
+                  {!formData.use_fixed_commission && (
+                    <div className={styles.formGroup}>
+                      <label>階梯式分潤比例</label>
+                      <div style={{ 
+                        padding: '8px 12px', 
+                        backgroundColor: '#f9fafb', 
+                        border: '1px solid #d1d5db', 
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        color: '#6b7280'
+                      }}>
+                        {formData.estimated_amount ? 
+                          `${formData.commission_rate}% (根據金額 NT$ ${parseFloat(formData.estimated_amount).toLocaleString()} 自動計算)` : 
+                          '請先輸入預估金額以計算分潤比例'
                         }
-                      }}
-                      disabled={!formData.use_fixed_commission}
-                      placeholder={!formData.use_fixed_commission ? "將根據階梯式自動計算" : "請輸入固定比例"}
-                      required
-                    />
-                    {!formData.use_fixed_commission && (
-                      <small style={{ color: '#6b7280', fontSize: '12px' }}>
-                        依金額階梯：≤10萬(35%) | 10-30萬(30%) | 30-60萬(25%) | 60-100萬(20%) | &gt;100萬(10%)
+                      </div>
+                      <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                        階梯標準：≤10萬(35%) | 10-30萬(30%) | 30-60萬(25%) | 60-100萬(20%) | &gt;100萬(10%)
                       </small>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   
                   <div className={styles.formGroup}>
                     <label>負責人 *</label>
