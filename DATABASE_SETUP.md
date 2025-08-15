@@ -6,9 +6,19 @@
 
 ## 📋 快速修復步驟
 
-### 🔥 立即執行 - 最小修復
+### 🔥 推薦方案 - 使用快速修復腳本
 
-在 Supabase SQL 編輯器中執行：
+在 Supabase SQL 編輯器中執行 **`database-quick-fix.sql`** 檔案的全部內容。
+
+這個腳本：
+- ✅ 解決UUID類型錯誤
+- ✅ 安全添加所有戰情室欄位
+- ✅ 創建必要的關聯表格
+- ✅ 自動驗證安裝結果
+
+### ⚡ 緊急修復 - 最小化SQL
+
+如果只需要解決 "column does not exist" 錯誤：
 
 ```sql
 -- 添加戰情室必要欄位
@@ -31,9 +41,9 @@ WHERE table_name = 'prospects'
 AND column_name IN ('close_rate', 'budget_status');
 ```
 
-### 🚀 完整遷移 - 推薦方案
+### 🚀 完整遷移方案（包含測試資料）
 
-在 Supabase SQL 編輯器中執行 **`database-migration.sql`** 檔案的完整內容。
+如果需要完整的測試環境，執行 **`database-migration.sql`** 檔案（已修復UUID問題）。
 
 這會：
 - ✅ 安全添加所有戰情室欄位

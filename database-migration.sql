@@ -150,13 +150,13 @@ WHERE close_rate IS NULL OR budget_status IS NULL OR competitor_status IS NULL;
 -- 8. 插入測試使用者資料（如果不存在）
 INSERT INTO users (id, email, name, role)
 SELECT * FROM (VALUES
-  ('00000000-0000-0000-0000-000000000001', 'zhang@chuanhui.com', '張業務', 'sales'),
-  ('00000000-0000-0000-0000-000000000002', 'li@chuanhui.com', '李業務', 'sales'),
-  ('00000000-0000-0000-0000-000000000003', 'wang@chuanhui.com', '王業務', 'sales'),
-  ('00000000-0000-0000-0000-000000000004', 'chen@chuanhui.com', '陳業務', 'sales'),
-  ('00000000-0000-0000-0000-000000000005', 'wang.manager@chuanhui.com', '王主管', 'manager'),
-  ('00000000-0000-0000-0000-000000000006', 'li.manager@chuanhui.com', '李主管', 'manager'),
-  ('00000000-0000-0000-0000-000000000007', 'zhang.manager@chuanhui.com', '張主管', 'manager')
+  ('00000000-0000-0000-0000-000000000001'::uuid, 'zhang@chuanhui.com', '張業務', 'sales'),
+  ('00000000-0000-0000-0000-000000000002'::uuid, 'li@chuanhui.com', '李業務', 'sales'),
+  ('00000000-0000-0000-0000-000000000003'::uuid, 'wang@chuanhui.com', '王業務', 'sales'),
+  ('00000000-0000-0000-0000-000000000004'::uuid, 'chen@chuanhui.com', '陳業務', 'sales'),
+  ('00000000-0000-0000-0000-000000000005'::uuid, 'wang.manager@chuanhui.com', '王主管', 'manager'),
+  ('00000000-0000-0000-0000-000000000006'::uuid, 'li.manager@chuanhui.com', '李主管', 'manager'),
+  ('00000000-0000-0000-0000-000000000007'::uuid, 'zhang.manager@chuanhui.com', '張主管', 'manager')
 ) AS t(id, email, name, role)
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = t.email);
 
@@ -207,10 +207,10 @@ LIMIT 2;
 -- 12. 插入測試共享檔案（如果表格為空）
 INSERT INTO shared_files (uploader_id, file_name, file_path, file_url, description, tags)
 SELECT * FROM (VALUES
-  ('00000000-0000-0000-0000-000000000005', '產品手冊_2025.pdf', '/files/product_manual_2025.pdf', 'https://example.com/files/product_manual_2025.pdf', '最新產品功能介紹手冊', ARRAY['產品', '手冊', '2025']),
-  ('00000000-0000-0000-0000-000000000006', '價格表_企業版.xlsx', '/files/enterprise_pricing.xlsx', 'https://example.com/files/enterprise_pricing.xlsx', '企業版產品價格表', ARRAY['價格', '企業版']),
-  ('00000000-0000-0000-0000-000000000007', '技術規格書.docx', '/files/technical_specs.docx', 'https://example.com/files/technical_specs.docx', '技術規格詳細說明', ARRAY['技術', '規格']),
-  ('00000000-0000-0000-0000-000000000005', '案例分析_成功故事.pptx', '/files/success_stories.pptx', 'https://example.com/files/success_stories.pptx', '客戶成功案例分析', ARRAY['案例', '成功故事'])
+  ('00000000-0000-0000-0000-000000000005'::uuid, '產品手冊_2025.pdf', '/files/product_manual_2025.pdf', 'https://example.com/files/product_manual_2025.pdf', '最新產品功能介紹手冊', ARRAY['產品', '手冊', '2025']),
+  ('00000000-0000-0000-0000-000000000006'::uuid, '價格表_企業版.xlsx', '/files/enterprise_pricing.xlsx', 'https://example.com/files/enterprise_pricing.xlsx', '企業版產品價格表', ARRAY['價格', '企業版']),
+  ('00000000-0000-0000-0000-000000000007'::uuid, '技術規格書.docx', '/files/technical_specs.docx', 'https://example.com/files/technical_specs.docx', '技術規格詳細說明', ARRAY['技術', '規格']),
+  ('00000000-0000-0000-0000-000000000005'::uuid, '案例分析_成功故事.pptx', '/files/success_stories.pptx', 'https://example.com/files/success_stories.pptx', '客戶成功案例分析', ARRAY['案例', '成功故事'])
 ) AS t(uploader_id, file_name, file_path, file_url, description, tags)
 WHERE NOT EXISTS (SELECT 1 FROM shared_files LIMIT 1);
 
