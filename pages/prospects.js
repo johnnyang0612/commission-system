@@ -594,32 +594,50 @@ export default function Prospects() {
 
   // 共用的階段更新函數
   const updateProspectStage = async (prospectId, newStage, oldStage) => {
-    // Update local state optimistically
-    const updatedProspects = prospects.map(p => 
-      p.id === prospectId ? { ...p, stage: newStage } : p
-    );
-    setProspects(updatedProspects);
+    try {
+      // Update local state optimistically
+      const updatedProspects = prospects.map(p => 
+        p.id === prospectId ? { ...p, stage: newStage, stage_updated_at: new Date().toISOString() } : p
+      );
+      setProspects(updatedProspects);
 
-    // Update in database
-    const { error } = await supabase
-      .from('prospects')
-      .update({ stage: newStage, updated_at: new Date().toISOString() })
-      .eq('id', prospectId);
-    
-    if (error) {
-      console.error('Error updating prospect stage:', error);
-      fetchProspects(); // Revert on error
-      return;
+      // Update in database
+      const { error } = await supabase
+        .from('prospects')
+        .update({ 
+          stage: newStage, 
+          updated_at: new Date().toISOString()
+          // stage_updated_at 會由觸發器自動更新
+        })
+        .eq('id', prospectId);
+      
+      if (error) {
+        console.error('Error updating prospect stage:', error);
+        alert(`更新階段失敗：${error.message}`);
+        // Revert on error
+        await fetchProspects();
+        return;
+      }
+
+      // Log the change (處理可能的錯誤)
+      try {
+        await supabase.from('prospect_activities').insert({
+          prospect_id: prospectId,
+          user_id: user?.id,
+          activity_type: 'stage_change',
+          old_value: oldStage,
+          new_value: newStage,
+          description: `階段從 ${oldStage} 變更為 ${newStage}`
+        });
+      } catch (logError) {
+        console.warn('Failed to log stage change:', logError);
+        // 不影響主要功能，只是記錄失敗
+      }
+    } catch (error) {
+      console.error('Unexpected error in updateProspectStage:', error);
+      alert('更新階段時發生未預期錯誤');
+      await fetchProspects();
     }
-
-    // Log the change
-    await supabase.from('prospect_activities').insert({
-      prospect_id: prospectId,
-      activity_type: 'stage_change',
-      old_value: oldStage,
-      new_value: newStage,
-      description: `階段從 ${oldStage} 變更為 ${newStage}`
-    });
   };
 
   const updateManualOrder = async (prospectId, stage, newIndex) => {
@@ -628,7 +646,10 @@ export default function Prospects() {
       const stageProspects = getSortedProspects().filter(p => p.stage === stage);
       const draggedProspect = stageProspects.find(p => p.id === prospectId);
       
-      if (!draggedProspect) return;
+      if (!draggedProspect) {
+        console.warn('Dragged prospect not found:', prospectId);
+        return;
+      }
       
       // 移除被拖拽的案件
       const otherProspects = stageProspects.filter(p => p.id !== prospectId);
@@ -653,13 +674,23 @@ export default function Prospects() {
           .eq('id', id)
       );
       
-      await Promise.all(updatePromises);
+      const results = await Promise.all(updatePromises);
+      
+      // 檢查是否有更新失敗
+      const errors = results.filter(result => result.error);
+      if (errors.length > 0) {
+        console.error('Some manual order updates failed:', errors);
+        alert('部分排序更新失敗，請重試');
+        await fetchProspects();
+        return;
+      }
       
       // 重新載入數據以反映更新
       await fetchProspects();
       
     } catch (error) {
       console.error('Error updating manual order:', error);
+      alert(`更新排序失敗：${error.message}`);
       // 發生錯誤時重新載入以復原狀態
       await fetchProspects();
     }
