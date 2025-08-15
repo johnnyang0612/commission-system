@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { supabase } from '../utils/supabaseClient';
 import { exportProspectsToExcel, exportProspectReportToPDF } from '../utils/exportUtils';
 import styles from '../styles/Prospects.module.css';
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
 const STAGES = [
   { id: '初談', label: '初談', color: '#94a3b8' },
@@ -66,6 +67,7 @@ export default function Prospects() {
   const [prospects, setProspects] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('priority'); // 'priority' | 'kanban' | 'tasks'
   const [selectedProspect, setSelectedProspect] = useState(null);
   const [filters, setFilters] = useState({
     closeRate: '',
@@ -122,6 +124,38 @@ export default function Prospects() {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  
+  // Activities (新任務系統) 狀態
+  const [activities, setActivities] = useState([]);
+  const [groupedActivities, setGroupedActivities] = useState({
+    overdue: [],
+    today: [],
+    soon: [],
+    unscheduled: []
+  });
+  const [selectedActivities, setSelectedActivities] = useState([]);
+  const [selectedProspects, setSelectedProspects] = useState([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  
+  // 觸控滑動狀態
+  const [swipeState, setSwipeState] = useState({
+    startX: 0,
+    startY: 0,
+    currentX: 0,
+    isSwiping: false,
+    swipedItem: null
+  });
+  
+  // 結案對話框狀態
+  const [showClosingDialog, setShowClosingDialog] = useState(false);
+  const [closingProspect, setClosingProspect] = useState(null);
+  const [closingForm, setClosingForm] = useState({
+    result: 'won', // 'won' | 'lost'
+    reason: '',
+    close_date: new Date().toISOString().split('T')[0],
+    final_amount: '',
+    notes: ''
+  });
 
   useEffect(() => {
     checkUser();
@@ -129,6 +163,12 @@ export default function Prospects() {
     fetchProspects();
     fetchStatistics();
   }, []);
+
+  useEffect(() => {
+    if (viewMode === 'tasks') {
+      fetchActivities();
+    }
+  }, [viewMode]);
 
   // 當案件資料變化時計算提醒
   useEffect(() => {
@@ -222,16 +262,155 @@ export default function Prospects() {
     }
   };
 
+  const fetchActivities = async (owner = 'me', status = 'open') => {
+    setLoadingActivities(true);
+    try {
+      const response = await fetch(`/api/activities?owner=${owner}&status=${status}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch activities');
+      }
+      
+      const result = await response.json();
+      setActivities(result.activities || []);
+      setGroupedActivities(result.grouped || {
+        overdue: [],
+        today: [],
+        soon: [],
+        unscheduled: []
+      });
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      setActivities([]);
+      setGroupedActivities({
+        overdue: [],
+        today: [],
+        soon: [],
+        unscheduled: []
+      });
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
+  const createActivity = async (activityData) => {
+    try {
+      const response = await fetch('/api/activities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(activityData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create activity');
+      }
+
+      const result = await response.json();
+      
+      // 重新載入 activities
+      await fetchActivities();
+      
+      return result.activity;
+    } catch (error) {
+      console.error('Error creating activity:', error);
+      throw error;
+    }
+  };
+
+  const updateActivity = async (activityId, updateData) => {
+    try {
+      const response = await fetch(`/api/activities/${activityId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update activity');
+      }
+
+      const result = await response.json();
+      
+      // 重新載入 activities
+      await fetchActivities();
+      
+      return result.activity;
+    } catch (error) {
+      console.error('Error updating activity:', error);
+      throw error;
+    }
+  };
+
+  const batchUpdateActivities = async (activityIds, action, data = {}) => {
+    try {
+      const response = await fetch('/api/activities/batch', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          activity_ids: activityIds,
+          action,
+          data
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to batch update activities');
+      }
+
+      const result = await response.json();
+      
+      // 重新載入 activities
+      await fetchActivities();
+      
+      return result;
+    } catch (error) {
+      console.error('Error batch updating activities:', error);
+      throw error;
+    }
+  };
+
   const handleDragEnd = async (result) => {
     if (!result.destination) return;
     
     const { draggableId, source, destination } = result;
     
-    if (source.droppableId === destination.droppableId) return;
+    // If dropped in the same position, do nothing
+    if (source.droppableId === destination.droppableId && source.index === destination.index) {
+      return;
+    }
     
-    const newStage = destination.droppableId;
-    
-    await updateProspectStage(draggableId, newStage, source.droppableId);
+    // If moving to a different stage
+    if (source.droppableId !== destination.droppableId) {
+      const newStage = destination.droppableId;
+      const oldStage = source.droppableId;
+      
+      // Check if moving to terminal stages (已失單/已轉換) - should show closing dialog
+      if (['已失單', '已轉換'].includes(newStage)) {
+        const prospect = prospects.find(p => p.id === draggableId);
+        if (prospect) {
+          setClosingProspect(prospect);
+          setClosingForm({
+            result: newStage === '已轉換' ? 'won' : 'lost',
+            reason: '',
+            close_date: new Date().toISOString().split('T')[0],
+            final_amount: prospect.estimated_amount || '',
+            notes: ''
+          });
+          setShowClosingDialog(true);
+        }
+        return;
+      }
+      
+      await updateProspectStage(draggableId, newStage, oldStage);
+    } else {
+      // Handle manual ordering within the same column
+      await updateManualOrder(draggableId, destination.droppableId, destination.index);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -443,6 +622,49 @@ export default function Prospects() {
     });
   };
 
+  const updateManualOrder = async (prospectId, stage, newIndex) => {
+    try {
+      // 取得該階段的所有案件，按目前排序順序
+      const stageProspects = getSortedProspects().filter(p => p.stage === stage);
+      const draggedProspect = stageProspects.find(p => p.id === prospectId);
+      
+      if (!draggedProspect) return;
+      
+      // 移除被拖拽的案件
+      const otherProspects = stageProspects.filter(p => p.id !== prospectId);
+      
+      // 在新位置插入
+      otherProspects.splice(newIndex, 0, draggedProspect);
+      
+      // 重新分配 manual_order（從1開始）
+      const updates = otherProspects.map((prospect, index) => ({
+        id: prospect.id,
+        manual_order: index + 1
+      }));
+      
+      // 批次更新資料庫
+      const updatePromises = updates.map(({ id, manual_order }) => 
+        supabase
+          .from('prospects')
+          .update({ 
+            manual_order, 
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', id)
+      );
+      
+      await Promise.all(updatePromises);
+      
+      // 重新載入數據以反映更新
+      await fetchProspects();
+      
+    } catch (error) {
+      console.error('Error updating manual order:', error);
+      // 發生錯誤時重新載入以復原狀態
+      await fetchProspects();
+    }
+  };
+
   if (loading) return <div>載入中...</div>;
 
   // 智能排序函數
@@ -466,8 +688,20 @@ export default function Prospects() {
       filtered = filtered.filter(p => p.source && p.source.includes(filters.source));
     }
     
-    // 排序：成交率高 → 下次追蹤日期近 → 預估金額大
+    // 排序：手動排序優先 → 成交率高 → 下次追蹤日期近 → 預估金額大
     return filtered.sort((a, b) => {
+      // 0. 手動排序優先（同階段內）
+      if (a.stage === b.stage) {
+        const aManualOrder = parseInt(a.manual_order || 0);
+        const bManualOrder = parseInt(b.manual_order || 0);
+        if (aManualOrder !== bManualOrder && (aManualOrder > 0 || bManualOrder > 0)) {
+          // 手動排序值大的在前（最後拖拽的在最前）
+          if (aManualOrder === 0) return 1; // a 沒有手動排序，b 在前
+          if (bManualOrder === 0) return -1; // b 沒有手動排序，a 在前
+          return aManualOrder - bManualOrder; // 都有手動排序，小數值在前
+        }
+      }
+      
       // 1. 成交率排序
       const aCloseRate = CLOSE_RATE_OPTIONS.find(opt => opt.value === (a.close_rate || 'medium'))?.percentage || 50;
       const bCloseRate = CLOSE_RATE_OPTIONS.find(opt => opt.value === (b.close_rate || 'medium'))?.percentage || 50;
@@ -930,10 +1164,414 @@ export default function Prospects() {
     }
   };
 
+  // Activities 處理函數
+  const handleCompleteActivity = async (activityId) => {
+    try {
+      await updateActivity(activityId, {
+        result: 'completed',
+        done_at: new Date().toISOString()
+      });
+      alert('任務已完成！');
+    } catch (error) {
+      alert('完成任務失敗：' + error.message);
+    }
+  };
+
+  const handleRescheduleActivity = async (activityId, newDate) => {
+    try {
+      await updateActivity(activityId, {
+        due_at: newDate
+      });
+      alert('任務已改期！');
+    } catch (error) {
+      alert('改期失敗：' + error.message);
+    }
+  };
+
+  const handleSelectActivity = (activityId, isSelected) => {
+    if (isSelected) {
+      setSelectedActivities(prev => [...prev, activityId]);
+    } else {
+      setSelectedActivities(prev => prev.filter(id => id !== activityId));
+    }
+  };
+
+  const handleBulkComplete = async () => {
+    if (selectedActivities.length === 0) return;
+    
+    try {
+      await batchUpdateActivities(selectedActivities, 'complete');
+      setSelectedActivities([]);
+      alert(`已完成 ${selectedActivities.length} 個任務！`);
+    } catch (error) {
+      alert('批次完成失敗：' + error.message);
+    }
+  };
+
+  const handleBulkReschedule = async () => {
+    if (selectedActivities.length === 0) return;
+    
+    const newDate = prompt('請輸入新的到期日期 (YYYY-MM-DD):');
+    if (!newDate) return;
+    
+    try {
+      await batchUpdateActivities(selectedActivities, 'reschedule', {
+        due_at: newDate
+      });
+      setSelectedActivities([]);
+      alert(`已改期 ${selectedActivities.length} 個任務！`);
+    } catch (error) {
+      alert('批次改期失敗：' + error.message);
+    }
+  };
+
+  // Prospects 批次操作處理函數
+  const handleSelectProspect = (prospectId, isSelected) => {
+    if (isSelected) {
+      setSelectedProspects(prev => [...prev, prospectId]);
+    } else {
+      setSelectedProspects(prev => prev.filter(id => id !== prospectId));
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedProspects.length === 0) return;
+    
+    const selectedUser = prompt(`選擇要指派的業務人員:\n${users.map((user, i) => `${i + 1}. ${user.name}`).join('\n')}\n\n請輸入編號:`);
+    if (!selectedUser) return;
+    
+    const userIndex = parseInt(selectedUser) - 1;
+    if (userIndex < 0 || userIndex >= users.length) {
+      alert('無效的選項');
+      return;
+    }
+    
+    try {
+      const updates = selectedProspects.map(id => 
+        supabase
+          .from('prospects')
+          .update({ 
+            owner_id: users[userIndex].id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+      );
+      
+      await Promise.all(updates);
+      setSelectedProspects([]);
+      fetchProspects();
+      alert(`已指派 ${selectedProspects.length} 個案件給 ${users[userIndex].name}！`);
+    } catch (error) {
+      alert('批次指派失敗：' + error.message);
+    }
+  };
+
+  const handleBulkCloseRateUpdate = async () => {
+    if (selectedProspects.length === 0) return;
+    
+    const options = CLOSE_RATE_OPTIONS.map((opt, i) => `${i + 1}. ${opt.label} (${opt.percentage}%)`).join('\n');
+    const selection = prompt(`選擇新的成交率:\n${options}\n\n請輸入編號:`);
+    if (!selection) return;
+    
+    const optionIndex = parseInt(selection) - 1;
+    if (optionIndex < 0 || optionIndex >= CLOSE_RATE_OPTIONS.length) {
+      alert('無效的選項');
+      return;
+    }
+    
+    try {
+      const updates = selectedProspects.map(id => 
+        supabase
+          .from('prospects')
+          .update({ 
+            close_rate: CLOSE_RATE_OPTIONS[optionIndex].value,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+      );
+      
+      await Promise.all(updates);
+      setSelectedProspects([]);
+      fetchProspects();
+      alert(`已更新 ${selectedProspects.length} 個案件的成交率為：${CLOSE_RATE_OPTIONS[optionIndex].label}！`);
+    } catch (error) {
+      alert('批次更新成交率失敗：' + error.message);
+    }
+  };
+
+  const handleBulkFollowupUpdate = async () => {
+    if (selectedProspects.length === 0) return;
+    
+    const newDate = prompt('請輸入新的追蹤日期 (YYYY-MM-DD):');
+    if (!newDate) return;
+    
+    try {
+      const updates = selectedProspects.map(id => 
+        supabase
+          .from('prospects')
+          .update({ 
+            next_followup_date: newDate,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+      );
+      
+      await Promise.all(updates);
+      setSelectedProspects([]);
+      fetchProspects();
+      alert(`已更新 ${selectedProspects.length} 個案件的追蹤日期！`);
+    } catch (error) {
+      alert('批次更新追蹤日期失敗：' + error.message);
+    }
+  };
+
+  // 觸控滑動處理函數
+  const handleTouchStart = (e, itemId) => {
+    const touch = e.touches[0];
+    setSwipeState({
+      startX: touch.clientX,
+      startY: touch.clientY,
+      currentX: touch.clientX,
+      isSwiping: false,
+      swipedItem: itemId
+    });
+  };
+
+  const handleTouchMove = (e, itemId) => {
+    if (swipeState.swipedItem !== itemId) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - swipeState.startX;
+    const deltaY = touch.clientY - swipeState.startY;
+    
+    // 判斷是否為水平滑動
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+      e.preventDefault();
+      setSwipeState(prev => ({
+        ...prev,
+        currentX: touch.clientX,
+        isSwiping: true
+      }));
+    }
+  };
+
+  const handleTouchEnd = (e, itemId, itemType = 'prospect') => {
+    if (swipeState.swipedItem !== itemId) return;
+    
+    const deltaX = swipeState.currentX - swipeState.startX;
+    
+    // 左滑超過100px觸發動作
+    if (deltaX < -100) {
+      if (itemType === 'prospect') {
+        const prospect = prospects.find(p => p.id === itemId);
+        if (prospect) {
+          // 顯示快速動作選單
+          showQuickActionMenu(prospect);
+        }
+      }
+    }
+    
+    // 重置滑動狀態
+    setSwipeState({
+      startX: 0,
+      startY: 0,
+      currentX: 0,
+      isSwiping: false,
+      swipedItem: null
+    });
+  };
+
+  const showQuickActionMenu = (prospect) => {
+    const actions = [
+      '1. 📞 電話聯絡',
+      '2. 📅 改追蹤日期',
+      '3. 📊 調成交率',
+      '4. 👤 重新指派',
+      '5. 取消'
+    ].join('\n');
+    
+    const choice = prompt(`快速動作選單 - ${prospect.client_name}:\n\n${actions}\n\n請輸入編號:`);
+    
+    switch(choice) {
+      case '1':
+        setSelectedProspect(prospect);
+        setShowActionModal(true);
+        break;
+      case '2':
+        handleQuickFollowupUpdate(prospect);
+        break;
+      case '3':
+        handleQuickCloseRateUpdate(prospect);
+        break;
+      case '4':
+        handleBulkAssign(); // 可以改為單個指派
+        break;
+      default:
+        break;
+    }
+  };
+
+  // 結案處理函數
+  const handleClosingSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!closingProspect) return;
+    
+    try {
+      const finalStage = closingForm.result === 'won' ? '已轉換' : '已失單';
+      
+      // 更新案件狀態
+      const { error } = await supabase
+        .from('prospects')
+        .update({
+          stage: finalStage,
+          // 可以添加額外的結案欄位
+          closing_reason: closingForm.reason,
+          closing_date: closingForm.close_date,
+          final_amount: closingForm.final_amount || closingProspect.estimated_amount,
+          closing_notes: closingForm.notes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', closingProspect.id);
+      
+      if (error) throw error;
+      
+      // 記錄結案活動
+      await supabase.from('prospect_activities').insert({
+        prospect_id: closingProspect.id,
+        user_id: user?.id,
+        activity_type: 'case_closed',
+        old_value: closingProspect.stage,
+        new_value: finalStage,
+        description: `${finalStage}：${closingForm.reason}`
+      });
+      
+      // 如果是贏單，可以選擇轉換為專案
+      if (closingForm.result === 'won') {
+        const shouldConvert = confirm('是否要將此案件轉換為正式專案？');
+        if (shouldConvert) {
+          await handleConvertToProject(closingProspect);
+        }
+      }
+      
+      // 重新載入數據
+      await fetchProspects();
+      
+      // 關閉對話框
+      setShowClosingDialog(false);
+      setClosingProspect(null);
+      
+      alert(`案件已${finalStage === '已轉換' ? '成功結案' : '標記為失單'}！`);
+      
+    } catch (error) {
+      console.error('Error closing prospect:', error);
+      alert('結案失敗：' + error.message);
+    }
+  };
+
+  const handleClosingCancel = () => {
+    setShowClosingDialog(false);
+    setClosingProspect(null);
+    setClosingForm({
+      result: 'won',
+      reason: '',
+      close_date: new Date().toISOString().split('T')[0],
+      final_amount: '',
+      notes: ''
+    });
+  };
+
+  // 快速動作處理函數
+  const handleQuickFollowupUpdate = async (prospect) => {
+    const currentDate = prospect.next_followup_date ? 
+      new Date(prospect.next_followup_date).toISOString().split('T')[0] : '';
+    
+    const newDate = prompt('請輸入新的追蹤日期 (YYYY-MM-DD):', currentDate);
+    if (!newDate) return;
+    
+    try {
+      const { error } = await supabase
+        .from('prospects')
+        .update({ 
+          next_followup_date: newDate,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', prospect.id);
+      
+      if (error) throw error;
+      
+      fetchProspects(); // 重新載入數據
+      alert('追蹤日期已更新！');
+    } catch (error) {
+      console.error('Error updating followup date:', error);
+      alert('更新追蹤日期失敗：' + error.message);
+    }
+  };
+
+  const handleQuickCloseRateUpdate = async (prospect) => {
+    const currentRate = prospect.close_rate || 'medium';
+    const options = CLOSE_RATE_OPTIONS.map(opt => `${opt.value}: ${opt.label} (${opt.percentage}%)`).join('\n');
+    
+    const newRate = prompt(
+      `目前成交率: ${CLOSE_RATE_OPTIONS.find(opt => opt.value === currentRate)?.label || '中'}\n\n請選擇新的成交率:\n${options}\n\n請輸入代碼 (high/medium/low):`
+    );
+    
+    if (!newRate || !['high', 'medium', 'low'].includes(newRate)) {
+      if (newRate !== null) alert('請輸入有效的成交率代碼：high, medium, 或 low');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('prospects')
+        .update({ 
+          close_rate: newRate,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', prospect.id);
+      
+      if (error) throw error;
+      
+      fetchProspects(); // 重新載入數據
+      const selectedOption = CLOSE_RATE_OPTIONS.find(opt => opt.value === newRate);
+      alert(`成交率已更新為：${selectedOption.label} (${selectedOption.percentage}%)`);
+    } catch (error) {
+      console.error('Error updating close rate:', error);
+      alert('更新成交率失敗：' + error.message);
+    }
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
-        <h2>業務戰情室</h2>
+        <h2>
+          {viewMode === 'priority' ? '業務戰情室' : 
+           viewMode === 'kanban' ? '管道看板' : 
+           '我的任務'}
+        </h2>
+        
+        {/* 視圖切換器 */}
+        <div className={styles.viewSwitcher}>
+          <button 
+            className={`${styles.viewButton} ${viewMode === 'priority' ? styles.active : ''}`}
+            onClick={() => setViewMode('priority')}
+          >
+            🎯 戰情室
+          </button>
+          <button 
+            className={`${styles.viewButton} ${viewMode === 'kanban' ? styles.active : ''}`}
+            onClick={() => setViewMode('kanban')}
+          >
+            📋 管道看板
+          </button>
+          <button 
+            className={`${styles.viewButton} ${viewMode === 'tasks' ? styles.active : ''}`}
+            onClick={() => setViewMode('tasks')}
+          >
+            ✅ 我的任務
+          </button>
+        </div>
+        
         <div className={styles.headerActions}>
           <div className={styles.statistics}>
             <div className={styles.statItem}>
@@ -1104,13 +1742,37 @@ export default function Prospects() {
         </div>
       </div>
 
-      {/* 戰情室三分區佈局 */}
-      <div className={styles.warRoomLayout}>
+      {/* 根據視圖模式渲染不同內容 */}
+      {viewMode === 'priority' && (
+        /* 戰情室三分區佈局 */
+        <div className={styles.warRoomLayout}>
         {/* 左側：案件列表 */}
         <div className={styles.leftPanel}>
           <div className={styles.panelHeader}>
             <h3>高優先案件列表</h3>
             <span className={styles.count}>{getSortedProspects().length} 案</span>
+            {selectedProspects.length > 0 && (
+              <div className={styles.batchActions}>
+                <button 
+                  onClick={handleBulkAssign}
+                  className={styles.batchButton}
+                >
+                  👤 批次指派 ({selectedProspects.length})
+                </button>
+                <button 
+                  onClick={handleBulkCloseRateUpdate}
+                  className={styles.batchButton}
+                >
+                  📊 設成交率 ({selectedProspects.length})
+                </button>
+                <button 
+                  onClick={handleBulkFollowupUpdate}
+                  className={styles.batchButton}
+                >
+                  📅 批次改期 ({selectedProspects.length})
+                </button>
+              </div>
+            )}
           </div>
           <div className={styles.prospectsList}>
             {getSortedProspects().map(prospect => {
@@ -1128,9 +1790,21 @@ export default function Prospects() {
                   key={prospect.id} 
                   className={`${styles.prospectCard} ${selectedProspect?.id === prospect.id ? styles.selected : ''} ${importantNotification ? styles.hasAlert : ''}`}
                   onClick={() => setSelectedProspect(prospect)}
+                  onTouchStart={(e) => handleTouchStart(e, prospect.id)}
+                  onTouchMove={(e) => handleTouchMove(e, prospect.id)}
+                  onTouchEnd={(e) => handleTouchEnd(e, prospect.id, 'prospect')}
                 >
                   <div className={styles.prospectHeader}>
                     <div className={styles.prospectHeaderLeft}>
+                      <input
+                        type="checkbox"
+                        className={styles.prospectCheckbox}
+                        checked={selectedProspects.includes(prospect.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleSelectProspect(prospect.id, e.target.checked);
+                        }}
+                      />
                       <span 
                         className={styles.closeRateBadge}
                         style={getCloseRateStyle(prospect.close_rate || 'medium')}
@@ -1573,6 +2247,260 @@ export default function Prospects() {
           )}
         </div>
       </div>
+      )}
+
+      {/* Kanban 看板視圖 */}
+      {viewMode === 'kanban' && (
+        <div className={styles.kanbanView}>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <div className={styles.kanbanBoard}>
+              {STAGES.map(stage => (
+                <div key={stage.id} className={styles.kanbanColumn}>
+                  <div className={styles.columnHeader}>
+                    <h3>{stage.label}</h3>
+                    <span className={styles.columnCount}>
+                      {getSortedProspects().filter(p => p.stage === stage.id).length}
+                    </span>
+                  </div>
+                  <Droppable droppableId={stage.id}>
+                    {(provided, snapshot) => (
+                      <div
+                        {...provided.droppableProps}
+                        ref={provided.innerRef}
+                        className={`${styles.columnCards} ${snapshot.isDraggingOver ? styles.dragover : ''}`}
+                      >
+                        {getSortedProspects()
+                          .filter(prospect => prospect.stage === stage.id)
+                          .map((prospect, index) => (
+                            <Draggable 
+                              key={prospect.id} 
+                              draggableId={prospect.id.toString()} 
+                              index={index}
+                            >
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  {...provided.dragHandleProps}
+                                  className={`${styles.kanbanCard} ${snapshot.isDragging ? styles.dragging : ''}`}
+                                  onClick={() => !snapshot.isDragging && setSelectedProspect(prospect)}
+                                >
+                                  <div className={styles.cardHeader}>
+                                    <div className={styles.cardBadges}>
+                                      <span className={`${styles.closeRateBadge} ${styles[`rate${prospect.close_rate}`]}`}>
+                                        {CLOSE_RATE_OPTIONS.find(opt => opt.value === prospect.close_rate)?.label || '中'}
+                                      </span>
+                                      {prospect.estimated_amount >= 500000 && prospect.close_rate === 'high' && (
+                                        <span className={styles.priorityBadge}>⭐</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className={styles.cardTitle}>
+                                    {prospect.client_name} - {prospect.project_name}
+                                  </div>
+                                  <div className={styles.cardAmount}>
+                                    NT$ {parseInt(prospect.estimated_amount).toLocaleString()}
+                                  </div>
+                                  <div className={styles.cardMeta}>
+                                    {prospect.next_followup_date && (
+                                      <div className={styles.followupDate}>
+                                        追蹤: {new Date(prospect.next_followup_date).toLocaleDateString()}
+                                      </div>
+                                    )}
+                                    {prospect.expected_sign_date && (
+                                      <div className={styles.signDate}>
+                                        簽約: {new Date(prospect.expected_sign_date).toLocaleDateString()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className={styles.cardQuickActions}>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedProspect(prospect);
+                                        setShowActionModal(true);
+                                      }}
+                                      title="加行動"
+                                    >
+                                      +
+                                    </button>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickFollowupUpdate(prospect);
+                                      }}
+                                      title="改追蹤日"
+                                    >
+                                      📅
+                                    </button>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleQuickCloseRateUpdate(prospect);
+                                      }}
+                                      title="調成交率"
+                                    >
+                                      📊
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </div>
+              ))}
+            </div>
+          </DragDropContext>
+        </div>
+      )}
+
+      {/* 我的任務視圖 */}
+      {viewMode === 'tasks' && (
+        <div className={styles.tasksView}>
+          <div className={styles.tasksContainer}>
+            <div className={styles.tasksHeader}>
+              <h3>我的任務清單</h3>
+              <div className={styles.tasksActions}>
+                <button 
+                  className={styles.refreshButton}
+                  onClick={() => fetchActivities()}
+                  disabled={loadingActivities}
+                >
+                  {loadingActivities ? '載入中...' : '🔄 重新整理'}
+                </button>
+                {selectedActivities.length > 0 && (
+                  <div className={styles.bulkActions}>
+                    <button 
+                      onClick={() => handleBulkComplete()}
+                      className={styles.bulkButton}
+                    >
+                      ✅ 批次完成 ({selectedActivities.length})
+                    </button>
+                    <button 
+                      onClick={() => handleBulkReschedule()}
+                      className={styles.bulkButton}
+                    >
+                      📅 批次改期 ({selectedActivities.length})
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {loadingActivities ? (
+              <div className={styles.loadingActivities}>
+                <p>載入任務中...</p>
+              </div>
+            ) : (
+              <div className={styles.taskGroups}>
+                {/* 逾期任務 */}
+                {groupedActivities.overdue.length > 0 && (
+                  <div className={styles.taskGroup}>
+                    <div className={styles.taskGroupHeader}>
+                      <h4 className={styles.overdueHeader}>
+                        ⚠️ 逾期 ({groupedActivities.overdue.length})
+                      </h4>
+                    </div>
+                    <div className={styles.taskList}>
+                      {groupedActivities.overdue.map(activity => (
+                        <TaskItem
+                          key={activity.activity_id}
+                          activity={activity}
+                          onComplete={handleCompleteActivity}
+                          onReschedule={handleRescheduleActivity}
+                          onSelect={handleSelectActivity}
+                          isSelected={selectedActivities.includes(activity.activity_id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 今天的任務 */}
+                {groupedActivities.today.length > 0 && (
+                  <div className={styles.taskGroup}>
+                    <div className={styles.taskGroupHeader}>
+                      <h4 className={styles.todayHeader}>
+                        📅 今天 ({groupedActivities.today.length})
+                      </h4>
+                    </div>
+                    <div className={styles.taskList}>
+                      {groupedActivities.today.map(activity => (
+                        <TaskItem
+                          key={activity.activity_id}
+                          activity={activity}
+                          onComplete={handleCompleteActivity}
+                          onReschedule={handleRescheduleActivity}
+                          onSelect={handleSelectActivity}
+                          isSelected={selectedActivities.includes(activity.activity_id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 即將到來的任務 */}
+                {groupedActivities.soon.length > 0 && (
+                  <div className={styles.taskGroup}>
+                    <div className={styles.taskGroupHeader}>
+                      <h4 className={styles.soonHeader}>
+                        🔜 即將到來（7天內）({groupedActivities.soon.length})
+                      </h4>
+                    </div>
+                    <div className={styles.taskList}>
+                      {groupedActivities.soon.map(activity => (
+                        <TaskItem
+                          key={activity.activity_id}
+                          activity={activity}
+                          onComplete={handleCompleteActivity}
+                          onReschedule={handleRescheduleActivity}
+                          onSelect={handleSelectActivity}
+                          isSelected={selectedActivities.includes(activity.activity_id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 未排程任務 */}
+                {groupedActivities.unscheduled.length > 0 && (
+                  <div className={styles.taskGroup}>
+                    <div className={styles.taskGroupHeader}>
+                      <h4 className={styles.unscheduledHeader}>
+                        📝 未排程 ({groupedActivities.unscheduled.length})
+                      </h4>
+                    </div>
+                    <div className={styles.taskList}>
+                      {groupedActivities.unscheduled.map(activity => (
+                        <TaskItem
+                          key={activity.activity_id}
+                          activity={activity}
+                          onComplete={handleCompleteActivity}
+                          onReschedule={handleRescheduleActivity}
+                          onSelect={handleSelectActivity}
+                          isSelected={selectedActivities.includes(activity.activity_id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 空狀態 */}
+                {activities.length === 0 && !loadingActivities && (
+                  <div className={styles.emptyTasks}>
+                    <h4>🎉 沒有待辦任務</h4>
+                    <p>所有任務都已完成！</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
         {showModal && (
           <div className={styles.modal}>
@@ -2119,6 +3047,288 @@ export default function Prospects() {
             </div>
           </div>
         )}
+
+      {/* 結案對話框 */}
+      {showClosingDialog && closingProspect && (
+        <div className={styles.modalOverlay}>
+          <div className={`${styles.modal} ${styles.closingModal}`}>
+            <div className={styles.modalHeader}>
+              <h3>
+                {closingForm.result === 'won' ? '🎉 案件結案 - 贏單' : '❌ 案件結案 - 失單'}
+              </h3>
+              <button 
+                className={styles.closeButton}
+                onClick={handleClosingCancel}
+              >
+                ×
+              </button>
+            </div>
+            
+            <form onSubmit={handleClosingSubmit}>
+              <div className={styles.modalBody}>
+                <div className={styles.closingProspectInfo}>
+                  <h4>{closingProspect.client_name} - {closingProspect.project_name}</h4>
+                  <p>預估金額: NT$ {parseInt(closingProspect.estimated_amount || 0).toLocaleString()}</p>
+                </div>
+                
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label>結果類型 *</label>
+                    <select
+                      value={closingForm.result}
+                      onChange={(e) => setClosingForm({...closingForm, result: e.target.value})}
+                      required
+                    >
+                      <option value="won">🎉 贏單 - 成功簽約</option>
+                      <option value="lost">❌ 失單 - 未成交</option>
+                    </select>
+                  </div>
+                  
+                  <div className={styles.formGroup}>
+                    <label>結案日期 *</label>
+                    <input
+                      type="date"
+                      value={closingForm.close_date}
+                      onChange={(e) => setClosingForm({...closingForm, close_date: e.target.value})}
+                      required
+                    />
+                  </div>
+                  
+                  <div className={styles.formGroup}>
+                    <label>最終金額 *</label>
+                    <input
+                      type="number"
+                      placeholder="最終簽約/報價金額"
+                      value={closingForm.final_amount}
+                      onChange={(e) => setClosingForm({...closingForm, final_amount: e.target.value})}
+                      required
+                    />
+                  </div>
+                  
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label>
+                      {closingForm.result === 'won' ? '贏單原因 *' : '失單原因 *'}
+                    </label>
+                    <select
+                      value={closingForm.reason}
+                      onChange={(e) => setClosingForm({...closingForm, reason: e.target.value})}
+                      required
+                    >
+                      <option value="">請選擇原因</option>
+                      {closingForm.result === 'won' ? (
+                        <>
+                          <option value="價格優勢">價格有競爭優勢</option>
+                          <option value="產品符合需求">產品功能符合需求</option>
+                          <option value="服務品質佳">服務品質獲得認可</option>
+                          <option value="關係良好">客戶關係維護良好</option>
+                          <option value="時機恰當">推出時機恰當</option>
+                          <option value="其他">其他原因</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="價格過高">價格不符合預算</option>
+                          <option value="產品不符需求">產品功能不符合需求</option>
+                          <option value="選擇競爭對手">客戶選擇競爭對手</option>
+                          <option value="預算取消">客戶預算取消或延後</option>
+                          <option value="決策流程冗長">客戶決策流程過長</option>
+                          <option value="其他">其他原因</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  
+                  <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                    <label>補充說明</label>
+                    <textarea
+                      placeholder="詳細說明結案原因、後續處理方式等..."
+                      value={closingForm.notes}
+                      onChange={(e) => setClosingForm({...closingForm, notes: e.target.value})}
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className={styles.modalFooter}>
+                <button type="button" onClick={handleClosingCancel}>
+                  取消
+                </button>
+                <button 
+                  type="submit" 
+                  className={`${styles.submitButton} ${closingForm.result === 'won' ? styles.winButton : styles.loseButton}`}
+                >
+                  {closingForm.result === 'won' ? '確認贏單' : '確認失單'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 手機版底部導覽 */}
+      <div className={styles.mobileBottomNav}>
+        <button 
+          className={`${styles.navButton} ${viewMode === 'priority' ? styles.active : ''}`}
+          onClick={() => setViewMode('priority')}
+        >
+          <span className={styles.navIcon}>🎯</span>
+          <span className={styles.navLabel}>戰情室</span>
+        </button>
+        <button 
+          className={`${styles.navButton} ${viewMode === 'kanban' ? styles.active : ''}`}
+          onClick={() => setViewMode('kanban')}
+        >
+          <span className={styles.navIcon}>📋</span>
+          <span className={styles.navLabel}>管道看板</span>
+        </button>
+        <button 
+          className={`${styles.navButton} ${viewMode === 'tasks' ? styles.active : ''}`}
+          onClick={() => setViewMode('tasks')}
+        >
+          <span className={styles.navIcon}>✅</span>
+          <span className={styles.navLabel}>我的任務</span>
+        </button>
       </div>
+      </div>
+  );
+}
+
+// TaskItem 組件
+function TaskItem({ activity, onComplete, onReschedule, onSelect, isSelected }) {
+  const getActivityIcon = (type) => {
+    const typeMap = {
+      phone: '📞',
+      meet: '🤝',
+      demo: '📊',
+      quote: '💰',
+      send: '📄',
+      visit: '🏢',
+      presentation: '🖥️',
+      negotiation: '💬',
+      contract: '✍️',
+      followup: '📋',
+      other: '📝'
+    };
+    return typeMap[type] || '📝';
+  };
+
+  const getActivityTypeLabel = (type) => {
+    const labelMap = {
+      phone: '電話聯絡',
+      meet: '面談會議',
+      demo: '產品展示',
+      quote: '報價提供',
+      send: '資料寄送',
+      visit: '客戶拜訪',
+      presentation: '產品簡報',
+      negotiation: '價格談判',
+      contract: '合約簽署',
+      followup: '後續追蹤',
+      other: '其他'
+    };
+    return labelMap[type] || '其他';
+  };
+
+  const formatDueDate = (dueAt) => {
+    if (!dueAt) return '未設定';
+    
+    const now = new Date();
+    const due = new Date(dueAt);
+    const diffTime = due.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      return `逾期 ${Math.abs(diffDays)} 天`;
+    } else if (diffDays === 0) {
+      return '今天';
+    } else if (diffDays === 1) {
+      return '明天';
+    } else {
+      return `${diffDays} 天後`;
+    }
+  };
+
+  const getDueDateClass = (dueAt) => {
+    if (!dueAt) return '';
+    
+    const now = new Date();
+    const due = new Date(dueAt);
+    const diffTime = due.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) return 'overdue';
+    if (diffDays === 0) return 'today';
+    if (diffDays <= 3) return 'soon';
+    return 'future';
+  };
+
+  return (
+    <div className={`${styles.taskItem} ${isSelected ? styles.selected : ''}`}>
+      <div className={styles.taskCheckbox}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onSelect(activity.activity_id, e.target.checked)}
+        />
+      </div>
+      
+      <div className={styles.taskIcon}>
+        {getActivityIcon(activity.type)}
+      </div>
+      
+      <div className={styles.taskContent}>
+        <div className={styles.taskHeader}>
+          <span className={styles.taskType}>
+            {getActivityTypeLabel(activity.type)}
+          </span>
+          <span className={`${styles.taskDue} ${styles[getDueDateClass(activity.due_at)]}`}>
+            {formatDueDate(activity.due_at)}
+          </span>
+        </div>
+        
+        <div className={styles.taskTitle}>
+          {activity.deal?.client_name} - {activity.deal?.project_name}
+        </div>
+        
+        {activity.note && (
+          <div className={styles.taskNote}>
+            {activity.note}
+          </div>
+        )}
+        
+        <div className={styles.taskMeta}>
+          <span className={styles.taskOwner}>
+            負責人: {activity.owner?.name}
+          </span>
+          {activity.due_at && (
+            <span className={styles.taskDate}>
+              到期: {new Date(activity.due_at).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+      </div>
+      
+      <div className={styles.taskActions}>
+        <button
+          onClick={() => onComplete(activity.activity_id)}
+          className={styles.completeButton}
+          title="完成任務"
+        >
+          ✅
+        </button>
+        <button
+          onClick={() => {
+            const newDate = prompt('請輸入新的到期日期 (YYYY-MM-DD):');
+            if (newDate) {
+              onReschedule(activity.activity_id, newDate);
+            }
+          }}
+          className={styles.rescheduleButton}
+          title="改期"
+        >
+          📅
+        </button>
+      </div>
+    </div>
   );
 }

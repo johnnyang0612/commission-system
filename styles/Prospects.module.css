@@ -78,6 +78,498 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* 視圖切換器樣式 */
+.viewSwitcher {
+  display: flex;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 4px;
+  margin-left: 20px;
+}
+
+.viewButton {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.viewButton:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.viewButton.active {
+  background: white;
+  color: #4f46e5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Kanban 看板樣式 */
+.kanbanView {
+  margin-top: 20px;
+}
+
+.kanbanBoard {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding-bottom: 20px;
+}
+
+.kanbanColumn {
+  min-width: 280px;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 16px;
+  flex-shrink: 0;
+}
+
+.columnHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.columnHeader h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
+}
+
+.columnCount {
+  background: #6b7280;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.columnCards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+}
+
+.kanbanCard {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid #e5e7eb;
+}
+
+.kanbanCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cardBadges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.closeRateBadge {
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 500;
+  color: white;
+}
+
+.priorityBadge {
+  font-size: 14px;
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.cardAmount {
+  font-size: 16px;
+  font-weight: bold;
+  color: #059669;
+  margin-bottom: 12px;
+}
+
+.cardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.followupDate, .signDate {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.cardQuickActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.cardQuickActions button {
+  padding: 6px 10px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.cardQuickActions button:hover {
+  background: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+/* Drag and Drop 樣式 */
+.dragover {
+  background: #eff6ff !important;
+  border: 2px dashed #3b82f6;
+  border-radius: 8px;
+}
+
+.dragging {
+  opacity: 0.8;
+  transform: rotate(2deg);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2) !important;
+  z-index: 999;
+}
+
+.kanbanCard.dragging .cardQuickActions {
+  display: none;
+}
+
+/* 任務視圖樣式 */
+.tasksView {
+  margin-top: 20px;
+  padding: 20px;
+}
+
+.tasksContainer {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.tasksContainer h3 {
+  font-size: 24px;
+  color: #374151;
+  margin-bottom: 16px;
+}
+
+.taskGroups {
+  display: grid;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.taskGroup {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+}
+
+.taskGroup h4 {
+  font-size: 18px;
+  color: #374151;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.taskGroup p {
+  color: #6b7280;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* 任務項目詳細樣式 */
+.tasksHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tasksActions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.refreshButton {
+  padding: 8px 16px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.refreshButton:hover {
+  background: #4f46e5;
+}
+
+.refreshButton:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.bulkActions {
+  display: flex;
+  gap: 8px;
+}
+
+.bulkButton {
+  padding: 6px 12px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+}
+
+.bulkButton:hover {
+  background: #059669;
+}
+
+.loadingActivities {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+}
+
+.taskGroupHeader {
+  margin-bottom: 16px;
+}
+
+.overdueHeader {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.todayHeader {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.soonHeader {
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.unscheduledHeader {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.taskItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.taskItem:hover {
+  border-color: #6366f1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.taskItem.selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.taskCheckbox {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.taskCheckbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.taskIcon {
+  flex-shrink: 0;
+  font-size: 20px;
+  margin-top: 2px;
+}
+
+.taskContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.taskHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.taskType {
+  background: #f3f4f6;
+  color: #374151;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.taskDue {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.taskDue.overdue {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.taskDue.today {
+  background: #fef3c7;
+  color: #f59e0b;
+}
+
+.taskDue.soon {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.taskDue.future {
+  background: #f0fdf4;
+  color: #059669;
+}
+
+.taskTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.taskNote {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.taskMeta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.taskOwner,
+.taskDate {
+  flex-shrink: 0;
+}
+
+.taskActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.completeButton,
+.rescheduleButton {
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.completeButton {
+  background: #dcfce7;
+  color: #059669;
+}
+
+.completeButton:hover {
+  background: #bbf7d0;
+  transform: scale(1.1);
+}
+
+.rescheduleButton {
+  background: #dbeafe;
+  color: #3b82f6;
+}
+
+.rescheduleButton:hover {
+  background: #bfdbfe;
+  transform: scale(1.1);
+}
+
+.emptyTasks {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+}
+
+.emptyTasks h4 {
+  font-size: 20px;
+  margin-bottom: 12px;
+  color: #374151;
+}
+
+.emptyTasks p {
+  font-size: 16px;
+  margin: 0;
+}
+
 .addButton {
   padding: 10px 20px;
   background: #10b981;
@@ -230,6 +722,29 @@
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.batchActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.batchButton {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.batchButton:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
 }
 
 /* 案件列表樣式 */
@@ -1279,6 +1794,13 @@
   gap: 8px;
 }
 
+.prospectCheckbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
 .prospectCard.hasAlert {
   border-left: 4px solid #f59e0b;
   background: #fffbf0;
@@ -1444,4 +1966,117 @@
   .timelineDate {
     width: auto;
   }
+  
+  /* 手機版底部導覽 */
+  .mobileBottomNav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    z-index: 1000;
+    padding: 8px 0;
+  }
+
+  .navButton {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 4px;
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .navButton.active {
+    color: #3b82f6;
+  }
+
+  .navIcon {
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+
+  .navLabel {
+    font-size: 10px;
+    font-weight: 500;
+  }
+  
+  /* 為手機版內容添加底部間距 */
+  .container {
+    padding-bottom: 80px;
+  }
+  
+  /* 隱藏桌面版視圖切換器 */
+  .viewSwitcher {
+    display: none;
+  }
+}
+
+/* 桌面版樣式 - 隱藏手機版底部導覽 */
+@media (min-width: 769px) {
+  .mobileBottomNav {
+    display: none;
+  }
+  
+  .container {
+    padding-bottom: 0;
+  }
+  
+  .viewSwitcher {
+    display: flex !important;
+  }
+}
+
+/* 結案對話框樣式 */
+.closingModal {
+  max-width: 600px;
+  width: 90%;
+}
+
+.closingProspectInfo {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 4px solid #3b82f6;
+}
+
+.closingProspectInfo h4 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.closingProspectInfo p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.winButton {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+}
+
+.winButton:hover {
+  background: #059669 !important;
+  border-color: #059669 !important;
+}
+
+.loseButton {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+.loseButton:hover {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
 }
