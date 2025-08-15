@@ -29,6 +29,47 @@ npm run start
 - **Database/Backend**: Supabase (using @supabase/supabase-js)
 - **Pages Router**: Using Next.js pages directory structure
 
+## ⚠️ CRITICAL: Layout Component Usage
+
+**IMPORTANT: DO NOT wrap pages with Layout component in individual page files!**
+
+The Layout component is automatically applied to all pages through `_app.js`. 
+
+### ❌ WRONG (causes double Layout/Header):
+```javascript
+// pages/somepage.js
+import Layout from '../components/Layout';
+
+export default function SomePage() {
+  return (
+    <Layout>  // ❌ DO NOT DO THIS - causes double header!
+      <div>Page content</div>
+    </Layout>
+  );
+}
+```
+
+### ✅ CORRECT:
+```javascript
+// pages/somepage.js
+// Layout is handled by _app.js - DO NOT import Layout
+
+export default function SomePage() {
+  return (
+    <div className={styles.container}>  // ✅ Just return the content directly
+      <div className={styles.pageHeader}>
+        <h2>Page Title</h2>
+      </div>
+      {/* Page content */}
+    </div>
+  );
+}
+```
+
+**Exception:** Only pages listed in `noLayoutPages` array in `_app.js` (like `/login`, `/test-login`, `/auth/callback`) should handle their own layout.
+
+**Common mistake pattern:** If you see double headers or nested navigation bars, check if the page is wrapping content with `<Layout>`. Remove it!
+
 ### Key Components
 
 1. **Supabase Client** (`utils/supabaseClient.js`): Centralized Supabase client configuration using environment variables
