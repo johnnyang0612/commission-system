@@ -1,51 +1,69 @@
-# 資料庫設置指南
+# 戰情室資料庫設置指南
 
-## 問題說明
-新增成本功能出現錯誤是因為 `project_costs` 表尚未在 Supabase 資料庫中建立。
+## 🚨 解決 "column close_rate does not exist" 錯誤
 
-## 解決方案
+您遇到的錯誤表示現有的 `prospects` 表格缺少戰情室功能需要的新欄位。
 
-### 步驟 1: 執行完整資料庫設置
+## 📋 快速修復步驟
 
-1. 登入您的 **Supabase Dashboard**
-2. 選擇您的專案
-3. 點選左側選單的 **SQL Editor**
-4. 建立新查詢並複製貼上 `migrations/setup_complete_database.sql` 的完整內容
-5. 點選 **RUN** 執行
+### 🔥 立即執行 - 最小修復
 
-### 步驟 2: 驗證表格建立
-
-執行以下查詢確認所有表格都已建立：
+在 Supabase SQL 編輯器中執行：
 
 ```sql
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'public' 
-AND table_type = 'BASE TABLE'
-ORDER BY table_name;
+-- 添加戰情室必要欄位
+ALTER TABLE prospects 
+ADD COLUMN IF NOT EXISTS close_rate VARCHAR DEFAULT 'medium',
+ADD COLUMN IF NOT EXISTS budget_status VARCHAR DEFAULT 'sufficient',
+ADD COLUMN IF NOT EXISTS next_followup_date DATE,
+ADD COLUMN IF NOT EXISTS expected_sign_date DATE,
+ADD COLUMN IF NOT EXISTS owner_id UUID;
+
+-- 更新現有記錄的預設值
+UPDATE prospects 
+SET close_rate = 'medium', 
+    budget_status = 'sufficient' 
+WHERE close_rate IS NULL OR budget_status IS NULL;
+
+-- 驗證添加成功
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'prospects' 
+AND column_name IN ('close_rate', 'budget_status');
 ```
 
-應該看到以下表格：
-- `users`
-- `projects` 
-- `project_installments`
-- `project_costs` ← 這是缺少的表格
-- `payments`
-- `commissions`
+### 🚀 完整遷移 - 推薦方案
 
-### 步驟 3: 測試成本新增功能
+在 Supabase SQL 編輯器中執行 **`database-migration.sql`** 檔案的完整內容。
 
-執行資料庫設置後，重新載入專案詳細頁面並測試新增成本功能。
+這會：
+- ✅ 安全添加所有戰情室欄位
+- ✅ 創建相關表格 (action_records, assistance_requests, shared_files, users)
+- ✅ 設置索引優化效能
+- ✅ 插入測試資料
+- ✅ 保留現有資料
 
-## 注意事項
+## 🔍 驗證設置成功
 
-- 設置腳本使用 `IF NOT EXISTS` 確保不會重複建立已存在的表格
-- 如果有現有資料，不會被影響
-- 預設會建立 Admin 和 Finance 使用者帳號
+執行後應該看到：
 
-## 如果仍有問題
+```sql
+-- 檢查欄位是否存在
+SELECT 'close_rate 欄位已添加' as status 
+WHERE EXISTS (
+  SELECT 1 FROM information_schema.columns 
+  WHERE table_name = 'prospects' AND column_name = 'close_rate'
+);
+```
 
-請檢查 Supabase 專案的：
-1. **Table Editor** 確認 `project_costs` 表格存在
-2. **API Settings** 確認表格權限設定
-3. 瀏覽器 Console 查看詳細錯誤訊息
+## ⚡ 設置完成後
+
+1. 重新整理戰情室頁面
+2. 所有功能應該正常運作
+3. 可以開始使用智能排序、通知提醒等功能
+
+## 📞 需要協助？
+
+如果執行遇到問題：
+1. 檢查 Supabase 連線狀態
+2. 確認有足夠權限執行 ALTER TABLE
+3. 查看 SQL 執行結果中的錯誤訊息

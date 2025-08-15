@@ -2,21 +2,32 @@
 -- 請在Supabase SQL編輯器中執行
 
 -- 1. 檢查並創建prospects表格（如果不存在）
+-- 注意：如果表格已存在，請使用 database-migration.sql 來添加新欄位
 CREATE TABLE IF NOT EXISTS prospects (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   client_name VARCHAR NOT NULL,
   project_name VARCHAR,
   stage VARCHAR DEFAULT '初談',
-  close_rate VARCHAR DEFAULT 'low', -- high, medium, low
+  close_rate VARCHAR DEFAULT 'medium', -- high, medium, low
   budget_status VARCHAR DEFAULT 'sufficient', -- sufficient, insufficient, too_low
   estimated_amount DECIMAL(15,2),
   contract_date DATE,
-  next_follow_date DATE,
+  next_followup_date DATE,
+  expected_sign_date DATE,
   assignee VARCHAR,
+  owner_id UUID,
   pain_points TEXT[],
   competitors TEXT[],
   resistance_factors TEXT[],
   decision_makers JSONB DEFAULT '[]'::jsonb,
+  decision_maker_name VARCHAR,
+  decision_maker_position VARCHAR,
+  decision_maker_contact VARCHAR,
+  key_influencers TEXT,
+  main_pain_points TEXT,
+  close_obstacles TEXT,
+  competitor_name VARCHAR,
+  competitor_status VARCHAR DEFAULT 'none',
   payment_terms VARCHAR,
   profit_sharing_method VARCHAR,
   profit_sharing_ratio DECIMAL(5,2),
