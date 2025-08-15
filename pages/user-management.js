@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../components/Layout';
+// Layout is handled by _app.js
 import { supabase } from '../utils/supabaseClient';
 import { getCurrentUser, USER_ROLES, hasPermission, PERMISSIONS } from '../utils/permissions';
 import styles from '../styles/UserManagement.module.css';
@@ -190,27 +190,20 @@ export default function UserManagement() {
   };
 
   if (loading) {
-    return (
-      <Layout>
-        <div className={styles.loading}>載入中...</div>
-      </Layout>
-    );
+    return <div className={styles.loading}>載入中...</div>;
   }
 
   if (!canManageUsers()) {
     return (
-      <Layout>
-        <div className={styles.accessDenied}>
-          <h2>權限不足</h2>
-          <p>您沒有權限存取用戶管理功能</p>
-        </div>
-      </Layout>
+      <div className={styles.accessDenied}>
+        <h2>權限不足</h2>
+        <p>您沒有權限存取用戶管理功能</p>
+      </div>
     );
   }
 
   return (
-    <Layout>
-      <div className={styles.container}>
+    <div className={styles.container}>
         <div className={styles.pageHeader}>
           <h2>用戶管理</h2>
           <div className={styles.headerActions}>
@@ -622,6 +615,6 @@ export default function UserManagement() {
           </div>
         )}
       </div>
-    </Layout>
+    </div>
   );
 }

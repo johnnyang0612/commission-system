@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../components/Layout';
+// Layout is handled by _app.js
 import { supabase } from '../utils/supabaseClient';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { 
@@ -273,10 +273,9 @@ export default function Prospects() {
       .reduce((sum, p) => sum + (parseFloat(p.estimated_amount || 0) * parseFloat(p.commission_rate || 0) / 100), 0);
   };
 
-  if (loading) return <Layout><div>載入中...</div></Layout>;
+  if (loading) return <div>載入中...</div>;
 
   return (
-    <Layout>
       <div className={styles.container}>
         <div className={styles.pageHeader}>
           <h2>未成案專案管理（Sales Pipeline）</h2>
@@ -633,6 +632,6 @@ export default function Prospects() {
           </div>
         )}
       </div>
-    </Layout>
+    </div>
   );
 }

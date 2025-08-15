@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../components/Layout';
+// Layout is handled by _app.js
 import { supabase } from '../utils/supabaseClient';
 import { getCurrentUser, USER_ROLES } from '../utils/permissions';
 import {
@@ -1054,16 +1054,8 @@ export default function Dashboard() {
   );
 
   if (loading) {
-    return (
-      <Layout>
-        <div className={styles.loading}>載入中...</div>
-      </Layout>
-    );
+    return <div className={styles.loading}>載入中...</div>;
   }
 
-  return (
-    <Layout>
-      {renderDashboard()}
-    </Layout>
-  );
+  return renderDashboard();
 }
