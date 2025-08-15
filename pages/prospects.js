@@ -666,7 +666,7 @@ export default function Prospects() {
                     />
                     {!formData.use_fixed_commission && (
                       <small style={{ color: '#6b7280', fontSize: '12px' }}>
-                        依金額階梯：≤10萬(35%) | 10-30萬(30%) | 30-60萬(25%) | 60-100萬(20%) | >100萬(10%)
+                        依金額階梯：≤10萬(35%) | 10-30萬(30%) | 30-60萬(25%) | 60-100萬(20%) | &gt;100萬(10%)
                       </small>
                     )}
                   </div>
