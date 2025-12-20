@@ -122,6 +122,38 @@ export default function Layout({ children }) {
             }}>
               維護管理
             </Link>
+
+            {/* AI 功能區 */}
+            <div style={{ borderLeft: '1px solid #4a5568', paddingLeft: '1.5rem', marginLeft: '0.5rem', display: 'flex', gap: '1.5rem' }}>
+              <Link href="/line-integration" style={{
+                color: isActive('/line-integration') ? '#06c755' : '#06c755',
+                textDecoration: 'none',
+                fontWeight: isActive('/line-integration') ? 'bold' : 'normal'
+              }}>
+                💬 LINE
+              </Link>
+              <Link href="/meetings" style={{
+                color: isActive('/meetings') ? '#3498db' : 'white',
+                textDecoration: 'none',
+                fontWeight: isActive('/meetings') ? 'bold' : 'normal'
+              }}>
+                📝 會議紀錄
+              </Link>
+              <Link href="/ai-generator" style={{
+                color: isActive('/ai-generator') ? '#f39c12' : '#f39c12',
+                textDecoration: 'none',
+                fontWeight: isActive('/ai-generator') ? 'bold' : 'normal'
+              }}>
+                🤖 AI生成
+              </Link>
+              <Link href="/knowledge-base" style={{
+                color: isActive('/knowledge-base') ? '#3498db' : 'white',
+                textDecoration: 'none',
+                fontWeight: isActive('/knowledge-base') ? 'bold' : 'normal'
+              }}>
+                📚 知識庫
+              </Link>
+            </div>
           </div>
           
           {/* 用戶資訊和登出按鈕 */}

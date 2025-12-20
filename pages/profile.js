@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import { supabase } from '../utils/supabaseClient';
 import { useSimpleAuth } from '../utils/simpleAuth';
 import { generateLaborReceiptPDF, downloadLaborReceiptCSV } from '../utils/laborReceiptPDF';
 
 export default function Profile() {
+  const router = useRouter();
   const { user: authUser } = useSimpleAuth();
   const [user, setUser] = useState(null);
+  const [lineBinding, setLineBinding] = useState({
+    isLinked: false,
+    displayName: '',
+    pictureUrl: '',
+    linkedAt: null
+  });
+  const [bindingLoading, setBindingLoading] = useState(false);
+  const [bindingMessage, setBindingMessage] = useState(null);
   const [formData, setFormData] = useState({
     // 基本資訊
     name: '',
@@ -49,6 +59,21 @@ export default function Profile() {
     fetchLaborReceipts();
   }, [authUser]);
 
+  // 處理 LINE 綁定 callback 結果
+  useEffect(() => {
+    const { bind, name, message } = router.query;
+    if (bind === 'success') {
+      setBindingMessage({ type: 'success', text: `LINE 帳號綁定成功！(${name})` });
+      // 清除 URL 參數
+      router.replace('/profile', undefined, { shallow: true });
+      // 重新載入用戶資料
+      fetchUserProfile();
+    } else if (bind === 'error') {
+      setBindingMessage({ type: 'error', text: `綁定失敗：${message || '未知錯誤'}` });
+      router.replace('/profile', undefined, { shallow: true });
+    }
+  }, [router.query]);
+
   async function fetchUserProfile() {
     if (!supabase || !authUser) {
       setLoading(false);
@@ -90,31 +115,39 @@ export default function Profile() {
       extension: userData.extension || '',
       job_title: userData.job_title || '',
       department: userData.department || '',
-      
+
       // 身分資訊
       national_id: userData.national_id || '',
       birth_date: userData.birth_date || '',
       registered_address: userData.registered_address || '',
       mailing_address: userData.mailing_address || '',
       tax_id_number: userData.tax_id_number || '',
-      
+
       // 銀行資訊
       bank_name: userData.bank_name || '',
       bank_code: userData.bank_code || '',
       account_number: userData.account_number || '',
       account_name: userData.account_name || '',
-      
+
       // 緊急聯絡
       emergency_contact_name: userData.emergency_contact_name || '',
       emergency_contact_phone: userData.emergency_contact_phone || '',
-      
+
       // 勞務報酬相關
       tax_exemption_amount: userData.tax_exemption_amount || 0,
       withholding_tax_rate: userData.withholding_tax_rate || 10.00,
       health_insurance_fee: userData.health_insurance_fee || 0,
       labor_insurance_fee: userData.labor_insurance_fee || 0
     });
-    
+
+    // 設定 LINE 綁定狀態
+    setLineBinding({
+      isLinked: !!userData.line_user_id,
+      displayName: userData.line_display_name || '',
+      pictureUrl: userData.line_picture_url || '',
+      linkedAt: userData.line_linked_at
+    });
+
     setUser(userData);
     setLoading(false);
   }
@@ -195,6 +228,63 @@ export default function Profile() {
     }
   }
 
+  // 開始 LINE 帳號綁定
+  async function handleLineBinding() {
+    if (!user) return;
+
+    setBindingLoading(true);
+    setBindingMessage(null);
+
+    try {
+      const response = await fetch(`/api/messaging/bindUser?user_id=${user.id}`);
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // 導向 LINE Login 頁面
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('取得綁定連結失敗:', error);
+      setBindingMessage({ type: 'error', text: '取得綁定連結失敗：' + error.message });
+      setBindingLoading(false);
+    }
+  }
+
+  // 解除 LINE 帳號綁定
+  async function handleUnlinkLine() {
+    if (!user || !confirm('確定要解除 LINE 帳號綁定嗎？')) return;
+
+    setBindingLoading(true);
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          line_user_id: null,
+          line_display_name: null,
+          line_picture_url: null,
+          line_linked_at: null
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      setLineBinding({
+        isLinked: false,
+        displayName: '',
+        pictureUrl: '',
+        linkedAt: null
+      });
+      setBindingMessage({ type: 'success', text: 'LINE 帳號已解除綁定' });
+    } catch (error) {
+      console.error('解除綁定失敗:', error);
+      setBindingMessage({ type: 'error', text: '解除綁定失敗：' + error.message });
+    } finally {
+      setBindingLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -766,6 +856,104 @@ export default function Profile() {
                   <div><strong>勞保費：</strong>NT$ {formData.labor_insurance_fee || 0}</div>
                 </div>
               </div>
+            </div>
+
+            {/* LINE 帳號綁定區域 */}
+            <div style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: '#e8f5e9', borderRadius: '8px', border: '1px solid #c8e6c9' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ margin: 0, marginBottom: '0.5rem', color: '#2c3e50', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: '#06C755', fontSize: '1.5rem' }}>LINE</span>
+                    帳號綁定
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
+                    綁定 LINE 帳號後，系統可在群組中識別您的身份
+                  </p>
+                </div>
+
+                {lineBinding.isLinked ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {lineBinding.pictureUrl && (
+                        <img
+                          src={lineBinding.pictureUrl}
+                          alt={lineBinding.displayName}
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            border: '2px solid #06C755'
+                          }}
+                        />
+                      )}
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#2c3e50' }}>
+                          {lineBinding.displayName}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#06C755' }}>
+                          已綁定
+                          {lineBinding.linkedAt && (
+                            <span style={{ marginLeft: '0.5rem', color: '#888' }}>
+                              ({new Date(lineBinding.linkedAt).toLocaleDateString('zh-TW')})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleUnlinkLine}
+                      disabled={bindingLoading}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#dc3545',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: bindingLoading ? 'not-allowed' : 'pointer',
+                        fontSize: '0.85rem',
+                        opacity: bindingLoading ? 0.7 : 1
+                      }}
+                    >
+                      {bindingLoading ? '處理中...' : '解除綁定'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleLineBinding}
+                    disabled={bindingLoading}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      backgroundColor: '#06C755',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: bindingLoading ? 'not-allowed' : 'pointer',
+                      fontSize: '1rem',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      opacity: bindingLoading ? 0.7 : 1
+                    }}
+                  >
+                    {bindingLoading ? '處理中...' : '綁定 LINE 帳號'}
+                  </button>
+                )}
+              </div>
+
+              {/* 綁定訊息提示 */}
+              {bindingMessage && (
+                <div style={{
+                  marginTop: '1rem',
+                  padding: '0.75rem 1rem',
+                  backgroundColor: bindingMessage.type === 'success' ? '#d4edda' : '#f8d7da',
+                  color: bindingMessage.type === 'success' ? '#155724' : '#721c24',
+                  borderRadius: '4px',
+                  fontSize: '0.9rem'
+                }}>
+                  {bindingMessage.text}
+                </div>
+              )}
             </div>
 
             {/* 勞務報酬單區域 */}

@@ -1393,54 +1393,60 @@ export default function ProjectDetail() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h3 style={{ margin: 0 }}>付款期數管理</h3>
           <div style={{ display: 'flex', gap: '1rem' }}>
-            <button
-              onClick={async () => {
-                const confirmed = confirm('確定要重新生成期數嗎？這將刪除現有期數並根據當前專案設定重新生成。');
-                if (!confirmed) return;
-                
-                await regenerateInstallments();
-              }}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#9b59b6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              自動生成
-            </button>
-            <button
-              onClick={() => setShowEditForm(!showEditForm)}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#f39c12',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              {showEditForm ? '取消編輯' : '編輯專案'}
-            </button>
-            <button
-              onClick={() => setShowAddInstallment(!showAddInstallment)}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#3498db',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              {showAddInstallment ? '取消' : '新增期數'}
-            </button>
+            {canEditCosts(userRole) && (
+              <button
+                onClick={async () => {
+                  const confirmed = confirm('確定要重新生成期數嗎？這將刪除現有期數並根據當前專案設定重新生成。');
+                  if (!confirmed) return;
+                  
+                  await regenerateInstallments();
+                }}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#9b59b6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                自動生成
+              </button>
+            )}
+            {canEditCosts(userRole) && (
+              <button
+                onClick={() => setShowEditForm(!showEditForm)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#f39c12',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                {showEditForm ? '取消編輯' : '編輯專案'}
+              </button>
+            )}
+            {canEditCosts(userRole) && (
+              <button
+                onClick={() => setShowAddInstallment(!showAddInstallment)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#3498db',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                {showAddInstallment ? '取消' : '新增期數'}
+              </button>
+            )}
           </div>
         </div>
 
-{showEditForm && (
+{showEditForm && canEditCosts(userRole) && (
           <form onSubmit={updateProject} style={{
             backgroundColor: '#fff3cd',
             padding: '1.5rem',

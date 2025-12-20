@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getLaborReceipts } from '../utils/laborReceiptGenerator';
+import { getLaborReceipts, generatePendingLaborReceipts } from '../utils/laborReceiptGenerator';
 import { getCurrentUser, getCurrentUserRole } from '../utils/permissions';
 import { generateLaborReceiptPDF, downloadLaborReceiptCSV } from '../utils/laborReceiptPDF';
+import { supabase } from '../utils/supabaseClient';
 
 export default function LaborReceipts() {
   const [receipts, setReceipts] = useState([]);
@@ -12,6 +13,7 @@ export default function LaborReceipts() {
     dateTo: '',
     userId: ''
   });
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     fetchLaborReceipts();
@@ -51,6 +53,35 @@ export default function LaborReceipts() {
     return colors[status] || '#95a5a6';
   };
 
+  const handleBatchGenerate = async () => {
+    setGenerating(true);
+    try {
+      // 使用數據庫函數進行批次生成
+      const { data, error } = await supabase.rpc('batch_generate_labor_receipts');
+      
+      if (error) throw error;
+      
+      const result = data[0];
+      if (result) {
+        alert(`批次產生完成！\n成功: ${result.success_count} 筆\n失敗: ${result.error_count} 筆\n總計處理: ${result.total_processed} 筆`);
+        
+        if (result.error_count > 0 && result.errors) {
+          console.error('產生錯誤:', result.errors);
+        }
+      } else {
+        alert('批次產生完成！');
+      }
+      
+      // 重新載入資料
+      await fetchLaborReceipts();
+    } catch (error) {
+      console.error('批次產生錯誤:', error);
+      alert(`批次產生失敗: ${error.message}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
@@ -65,20 +96,37 @@ export default function LaborReceipts() {
     <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h2 style={{ margin: 0 }}>勞務報酬單管理</h2>
-        <button
-          onClick={() => downloadLaborReceiptCSV(receipts)}
-          style={{
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#27ae60',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '1rem'
-          }}
-        >
-          📥 匯出全部 (CSV)
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button
+            onClick={handleBatchGenerate}
+            disabled={generating}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: generating ? '#95a5a6' : '#f39c12',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: generating ? 'not-allowed' : 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            {generating ? '⏳ 產生中...' : '🔄 批次產生'}
+          </button>
+          <button
+            onClick={() => downloadLaborReceiptCSV(receipts)}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#27ae60',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            📥 匯出全部 (CSV)
+          </button>
+        </div>
       </div>
 
       {/* 篩選區域 */}
