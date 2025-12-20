@@ -9,26 +9,37 @@ const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
 export const config = {
   api: {
-    bodyParser: {
-      raw: { type: 'application/json' }
-    }
+    bodyParser: false
   }
 };
+
+// 讀取 raw body
+async function getRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // 驗證 LINE 簽名
-  const signature = req.headers['x-line-signature'];
-  if (!verifySignature(req.body, signature)) {
-    console.error('Invalid LINE signature');
-    return res.status(401).json({ error: 'Invalid signature' });
-  }
-
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    // 讀取 raw body
+    const rawBody = await getRawBody(req);
+    console.log('收到 webhook，body 長度:', rawBody.length);
+
+    // 驗證 LINE 簽名
+    const signature = req.headers['x-line-signature'];
+    if (!verifySignature(rawBody, signature)) {
+      console.error('Invalid LINE signature');
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    const body = JSON.parse(rawBody);
     const events = body.events || [];
 
     console.log(`收到 ${events.length} 個 LINE 事件`);
@@ -46,19 +57,26 @@ export default async function handler(req, res) {
 }
 
 // 驗證 LINE 簽名
-function verifySignature(body, signature) {
-  if (!LINE_CHANNEL_SECRET || !signature) {
-    console.warn('缺少 LINE_CHANNEL_SECRET 或簽名，跳過驗證');
-    return true; // 開發時可以暫時跳過
+function verifySignature(rawBody, signature) {
+  if (!LINE_CHANNEL_SECRET) {
+    console.warn('缺少 LINE_CHANNEL_SECRET，跳過驗證');
+    return true;
+  }
+  if (!signature) {
+    console.warn('缺少簽名，跳過驗證');
+    return true;
   }
 
-  const bodyString = typeof body === 'string' ? body : JSON.stringify(body);
   const hash = crypto
     .createHmac('SHA256', LINE_CHANNEL_SECRET)
-    .update(bodyString)
+    .update(rawBody)
     .digest('base64');
 
-  return hash === signature;
+  const isValid = hash === signature;
+  if (!isValid) {
+    console.log('簽名驗證失敗 - expected:', hash, 'got:', signature);
+  }
+  return isValid;
 }
 
 // 處理 LINE 事件
