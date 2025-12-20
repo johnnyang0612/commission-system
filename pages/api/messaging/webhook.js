@@ -246,6 +246,17 @@ async function handleMessageEvent(event, groupId, userId) {
     if (['image', 'video', 'audio', 'file'].includes(message.type) && messageData.file_url) {
       await saveFileRecord(data.id, groupId, messageData, senderProfile);
     }
+
+    // 如果是文字訊息，嘗試偵測會議時間
+    if (message.type === 'text' && messageData.content && messageData.content.length > 10) {
+      try {
+        const { detectMeetingFromText } = await import('./detectMeeting.js');
+        await detectMeetingFromText(messageData.content, groupId, data.id);
+      } catch (e) {
+        // 會議偵測失敗不影響主流程
+        console.log('會議偵測跳過:', e.message);
+      }
+    }
   }
 }
 
