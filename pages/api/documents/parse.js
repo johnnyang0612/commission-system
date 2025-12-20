@@ -103,7 +103,7 @@ export default async function handler(req, res) {
 // PDF 解析
 async function parsePDF(fileBlob) {
   try {
-    const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default;
+    const pdfParse = (await import('pdf-parse')).default;
     const buffer = Buffer.from(await fileBlob.arrayBuffer());
     const data = await pdfParse(buffer);
     return data.text;

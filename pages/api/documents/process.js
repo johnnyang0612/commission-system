@@ -135,7 +135,7 @@ export default async function handler(req, res) {
 // ===== 工具函數 =====
 
 async function parsePDF(fileBlob) {
-  const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default;
+  const pdfParse = (await import('pdf-parse')).default;
   const buffer = Buffer.from(await fileBlob.arrayBuffer());
   const data = await pdfParse(buffer);
   return data.text;
