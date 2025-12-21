@@ -76,12 +76,13 @@ export default function Profile() {
 
   async function fetchUserProfile() {
     if (!supabase || !authUser) {
+      console.log('fetchUserProfile: 缺少 supabase 或 authUser', { supabase: !!supabase, authUser });
       setLoading(false);
       return;
     }
-    
+
     let userData = null;
-    
+
     if (authUser.id === 'demo-user') {
       // 演示用戶使用模擬資料
       userData = {
@@ -91,18 +92,33 @@ export default function Profile() {
         role: 'admin'
       };
     } else {
-      const { data, error } = await supabase
+      console.log('fetchUserProfile: 查詢用戶資料，ID:', authUser.id, 'Email:', authUser.email);
+
+      // 先用 ID 查詢
+      let { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
         .single();
-        
-      if (error) {
-        console.error('獲取用戶資料失敗:', error);
-        setLoading(false);
-        return;
+
+      // 如果 ID 找不到，用 email 查詢
+      if (error || !data) {
+        console.log('用 ID 找不到用戶，改用 email 查詢');
+        const emailResult = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', authUser.email)
+          .single();
+
+        if (emailResult.error) {
+          console.error('用 email 也找不到用戶:', emailResult.error);
+          setLoading(false);
+          return;
+        }
+        data = emailResult.data;
       }
-      
+
+      console.log('fetchUserProfile: 取得用戶資料:', data);
       userData = data;
     }
     
@@ -189,34 +205,51 @@ export default function Profile() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!supabase || !user) return;
+    if (!supabase || !user) {
+      alert('用戶資料尚未載入');
+      return;
+    }
 
-    const { error } = await supabase
+    const updateData = {
+      name: formData.name,
+      phone_number: formData.phone_number,
+      mobile_number: formData.mobile_number,
+      extension: formData.extension,
+      job_title: formData.job_title,
+      department: formData.department,
+      national_id: formData.national_id,
+      birth_date: formData.birth_date || null,
+      registered_address: formData.registered_address,
+      mailing_address: formData.mailing_address,
+      tax_id_number: formData.tax_id_number,
+      bank_name: formData.bank_name,
+      bank_code: formData.bank_code,
+      account_number: formData.account_number,
+      account_name: formData.account_name,
+      emergency_contact_name: formData.emergency_contact_name,
+      emergency_contact_phone: formData.emergency_contact_phone,
+      tax_exemption_amount: parseFloat(formData.tax_exemption_amount) || 0,
+      withholding_tax_rate: parseFloat(formData.withholding_tax_rate) || 10.00,
+      health_insurance_fee: parseFloat(formData.health_insurance_fee) || 0,
+      labor_insurance_fee: parseFloat(formData.labor_insurance_fee) || 0
+    };
+
+    console.log('更新用戶資料:', { userId: user.id, email: user.email, updateData });
+
+    // 優先用 ID 更新，失敗則用 email
+    let { error } = await supabase
       .from('users')
-      .update({
-        name: formData.name,
-        phone_number: formData.phone_number,
-        mobile_number: formData.mobile_number,
-        extension: formData.extension,
-        job_title: formData.job_title,
-        department: formData.department,
-        national_id: formData.national_id,
-        birth_date: formData.birth_date,
-        registered_address: formData.registered_address,
-        mailing_address: formData.mailing_address,
-        tax_id_number: formData.tax_id_number,
-        bank_name: formData.bank_name,
-        bank_code: formData.bank_code,
-        account_number: formData.account_number,
-        account_name: formData.account_name,
-        emergency_contact_name: formData.emergency_contact_name,
-        emergency_contact_phone: formData.emergency_contact_phone,
-        tax_exemption_amount: parseFloat(formData.tax_exemption_amount) || 0,
-        withholding_tax_rate: parseFloat(formData.withholding_tax_rate) || 10.00,
-        health_insurance_fee: parseFloat(formData.health_insurance_fee) || 0,
-        labor_insurance_fee: parseFloat(formData.labor_insurance_fee) || 0
-      })
+      .update(updateData)
       .eq('id', user.id);
+
+    if (error) {
+      console.log('用 ID 更新失敗，改用 email:', error);
+      const emailResult = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('email', user.email);
+      error = emailResult.error;
+    }
 
     if (error) {
       console.error('更新失敗:', error);
@@ -230,17 +263,27 @@ export default function Profile() {
 
   // 開始 LINE 帳號綁定
   async function handleLineBinding() {
-    if (!user) return;
+    if (!user) {
+      alert('用戶資料尚未載入，請稍候再試');
+      return;
+    }
 
     setBindingLoading(true);
     setBindingMessage(null);
 
     try {
+      console.log('開始 LINE 綁定，用戶 ID:', user.id);
       const response = await fetch(`/api/messaging/bindUser?user_id=${user.id}`);
       const data = await response.json();
 
+      console.log('LINE 綁定 API 回應:', data);
+
       if (data.error) {
         throw new Error(data.error);
+      }
+
+      if (!data.url) {
+        throw new Error('未取得綁定連結');
       }
 
       // 導向 LINE Login 頁面
