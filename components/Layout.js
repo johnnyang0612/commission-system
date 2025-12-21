@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useSimpleAuth, signOutSimple } from '../utils/simpleAuth';
@@ -9,325 +9,326 @@ export default function Layout({ children }) {
   const { user, loading } = useSimpleAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const dropdownRef = useRef(null);
 
-  // 關閉手機選單當路由改變
   useEffect(() => {
     setMobileMenuOpen(false);
     setActiveDropdown(null);
   }, [router.pathname]);
 
-  // 點擊外部關閉下拉選單
   useEffect(() => {
-    const handleClickOutside = () => setActiveDropdown(null);
-    if (activeDropdown) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [activeDropdown]);
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const isActive = (path) => router.pathname === path;
-  const isActiveGroup = (paths) => paths.some(p => router.pathname === p || router.pathname.startsWith(p + '/'));
 
   const handleLogout = async () => {
-    const confirmed = confirm('確定要登出嗎？');
-    if (confirmed) {
+    if (confirm('確定要登出嗎？')) {
       await signOutSimple();
       router.push('/login');
     }
   };
 
-  // 檢查用戶權限
   const canManageUsers = user && hasPermission(user.role, PERMISSIONS.MANAGE_USERS);
   const canViewFinance = user && (user.role === USER_ROLES.ADMIN || user.role === USER_ROLES.FINANCE);
 
-  // 如果正在載入認證狀態，顯示載入畫面
   if (loading) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        backgroundColor: '#f7fafc'
-      }}>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '16px'
-        }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            border: '3px solid #e2e8f0',
-            borderTopColor: '#4299e1',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-          }} />
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f7fafc' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 40, height: 40, border: '3px solid #e2e8f0', borderTopColor: '#4299e1', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
           <div style={{ color: '#718096' }}>載入中...</div>
         </div>
-        <style jsx>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+        <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
-  // 如果沒有登入，重定向到登入頁面
   if (!user && router.pathname !== '/login') {
-    if (typeof window !== 'undefined') {
-      router.push('/login');
-    }
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        backgroundColor: '#f7fafc'
-      }}>
-        <div style={{ color: '#718096' }}>正在重定向到登入頁面...</div>
-      </div>
-    );
+    if (typeof window !== 'undefined') router.push('/login');
+    return null;
   }
 
-  // 導航項目定義
-  const navGroups = [
-    {
-      id: 'main',
-      items: [
-        { href: '/dashboard', label: '儀表板', icon: '📊' },
-        { href: '/', label: '專案管理', icon: '📁' },
-        { href: '/prospects', label: '洽談管理', icon: '🤝' },
-      ]
-    },
-    {
-      id: 'finance',
-      label: '財務',
-      items: [
-        { href: '/commissions', label: '分潤管理', icon: '💰' },
-        { href: '/payments', label: '付款記錄', icon: '💳' },
-        { href: '/maintenance', label: '維護管理', icon: '🔧' },
-        ...(canViewFinance ? [{ href: '/payout-management', label: '撥款管理', icon: '📝' }] : []),
-        { href: '/my-payouts', label: '我的勞報單', icon: '📋' },
-      ]
-    },
-    {
-      id: 'ai',
-      label: 'AI 助理',
-      items: [
-        { href: '/line-integration', label: 'LINE 整合', icon: '💬' },
-        { href: '/meetings', label: '會議紀錄', icon: '📅' },
-        { href: '/ai-generator', label: 'AI 生成', icon: '🤖' },
-        { href: '/knowledge-base', label: '知識庫', icon: '📚' },
-      ]
-    },
-    {
-      id: 'admin',
-      items: [
-        ...(canManageUsers ? [{ href: '/user-management', label: '用戶管理', icon: '👥' }] : []),
-        { href: '/profile', label: '個人資料', icon: '👤' },
-      ]
-    }
+  // 簡化的導航結構
+  const navItems = [
+    { href: '/dashboard', label: '首頁', icon: '🏠' },
+    { href: '/', label: '專案', icon: '📁' },
+    { href: '/prospects', label: '洽談', icon: '🤝' },
+    { href: '/commissions', label: '分潤', icon: '💰' },
   ];
 
-  const NavLink = ({ href, label, icon, mobile = false }) => (
-    <Link
-      href={href}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: mobile ? '12px 16px' : '8px 12px',
-        borderRadius: '8px',
-        color: isActive(href) ? '#4299e1' : (mobile ? '#1a202c' : 'white'),
-        backgroundColor: isActive(href) ? (mobile ? '#ebf8ff' : 'rgba(66, 153, 225, 0.2)') : 'transparent',
-        textDecoration: 'none',
-        fontSize: mobile ? '15px' : '14px',
-        fontWeight: isActive(href) ? '600' : '400',
-        transition: 'all 0.2s',
-        whiteSpace: 'nowrap'
-      }}
-      onClick={() => mobile && setMobileMenuOpen(false)}
-    >
-      <span style={{ fontSize: mobile ? '18px' : '14px' }}>{icon}</span>
-      {label}
-    </Link>
-  );
+  const moreItems = [
+    { href: '/payments', label: '付款記錄', icon: '💳' },
+    { href: '/maintenance', label: '維護管理', icon: '🔧' },
+    { href: '/my-payouts', label: '我的勞報單', icon: '📋' },
+    ...(canViewFinance ? [{ href: '/payout-management', label: '撥款管理', icon: '📝' }] : []),
+    { href: '/line-integration', label: 'LINE 整合', icon: '💬' },
+    { href: '/meetings', label: '會議紀錄', icon: '📅' },
+    { href: '/ai-generator', label: 'AI 生成', icon: '🤖' },
+    { href: '/knowledge-base', label: '知識庫', icon: '📚' },
+    ...(canManageUsers ? [{ href: '/user-management', label: '用戶管理', icon: '👥' }] : []),
+    { href: '/profile', label: '個人資料', icon: '👤' },
+  ];
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f7fafc' }}>
-      {/* 導航列 */}
+    <div style={{ minHeight: '100vh', background: '#f7fafc' }}>
+      {/* 頂部導航 */}
       <nav style={{
-        backgroundColor: '#1a202c',
+        background: '#1a202c',
         position: 'sticky',
         top: 0,
         zIndex: 1000,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        padding: '0 16px',
+        height: 56
       }}>
         <div style={{
-          maxWidth: '1400px',
+          maxWidth: 1200,
           margin: '0 auto',
-          padding: '0 16px',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
         }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            height: '56px'
-          }}>
-            {/* Logo */}
-            <Link href="/dashboard" style={{
-              color: 'white',
-              fontSize: '18px',
-              fontWeight: '700',
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span style={{ fontSize: '24px' }}>🏢</span>
-              <span className="hide-mobile">川輝科技</span>
-            </Link>
+          {/* Logo */}
+          <Link href="/dashboard" style={{ color: 'white', fontWeight: 700, fontSize: 16, textDecoration: 'none' }}>
+            川輝科技
+          </Link>
 
-            {/* 桌面導航 */}
-            <div className="desktop-nav" style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              {navGroups.map(group => (
-                <div key={group.id} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                  {group.items.map(item => (
-                    <NavLink key={item.href} {...item} />
-                  ))}
-                  {group.id !== 'admin' && (
-                    <div style={{
-                      width: '1px',
-                      height: '24px',
-                      backgroundColor: 'rgba(255,255,255,0.2)',
-                      margin: '0 8px'
-                    }} />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* 用戶資訊 (桌面) */}
-            <div className="desktop-nav" style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <span style={{ color: '#a0aec0', fontSize: '13px' }}>
-                {user?.name || user?.email}
-              </span>
-              <button
-                onClick={handleLogout}
+          {/* 桌面導航 */}
+          <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {navItems.map(item => (
+              <Link
+                key={item.href}
+                href={item.href}
                 style={{
-                  padding: '6px 14px',
-                  backgroundColor: '#e53e3e',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  transition: 'background-color 0.2s'
+                  padding: '8px 14px',
+                  borderRadius: 6,
+                  color: isActive(item.href) ? '#63b3ed' : 'rgba(255,255,255,0.9)',
+                  background: isActive(item.href) ? 'rgba(99,179,237,0.15)' : 'transparent',
+                  textDecoration: 'none',
+                  fontSize: 14,
+                  fontWeight: isActive(item.href) ? 600 : 400
                 }}
               >
-                登出
-              </button>
-            </div>
-
-            {/* 漢堡選單按鈕 (手機) */}
-            <button
-              className="mobile-menu-btn"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              style={{
-                display: 'none',
-                padding: '8px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'white'
-              }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                {mobileMenuOpen ? (
-                  <path d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path d="M3 12h18M3 6h18M3 18h18" />
-                )}
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* 手機選單 */}
-        <div
-          className="mobile-menu"
-          style={{
-            display: mobileMenuOpen ? 'block' : 'none',
-            position: 'absolute',
-            top: '56px',
-            left: 0,
-            right: 0,
-            backgroundColor: 'white',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-            maxHeight: 'calc(100vh - 56px)',
-            overflowY: 'auto'
-          }}
-        >
-          <div style={{ padding: '8px' }}>
-            {navGroups.map(group => (
-              <div key={group.id} style={{ marginBottom: '8px' }}>
-                {group.label && (
-                  <div style={{
-                    padding: '8px 16px',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    color: '#718096',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                  }}>
-                    {group.label}
-                  </div>
-                )}
-                {group.items.map(item => (
-                  <NavLink key={item.href} {...item} mobile />
-                ))}
-              </div>
+                {item.label}
+              </Link>
             ))}
 
-            {/* 用戶資訊 (手機) */}
-            <div style={{
-              borderTop: '1px solid #e2e8f0',
-              marginTop: '8px',
-              paddingTop: '16px',
-              padding: '16px'
-            }}>
-              <div style={{
-                fontSize: '14px',
-                color: '#718096',
-                marginBottom: '12px'
-              }}>
-                {user?.name || user?.email}
-              </div>
+            {/* 更多下拉選單 */}
+            <div ref={dropdownRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setActiveDropdown(activeDropdown === 'more' ? null : 'more')}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 6,
+                  color: 'rgba(255,255,255,0.9)',
+                  background: activeDropdown === 'more' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                更多 <span style={{ fontSize: 10 }}>▼</span>
+              </button>
+
+              {activeDropdown === 'more' && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 8,
+                  background: 'white',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                  minWidth: 180,
+                  padding: '8px 0',
+                  zIndex: 1001
+                }}>
+                  {moreItems.map(item => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 16px',
+                        color: isActive(item.href) ? '#4299e1' : '#2d3748',
+                        background: isActive(item.href) ? '#ebf8ff' : 'transparent',
+                        textDecoration: 'none',
+                        fontSize: 14
+                      }}
+                    >
+                      <span>{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 登出 */}
+            <button
+              onClick={handleLogout}
+              style={{
+                marginLeft: 12,
+                padding: '6px 14px',
+                background: '#e53e3e',
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 13
+              }}
+            >
+              登出
+            </button>
+          </div>
+
+          {/* 手機版漢堡選單 */}
+          <button
+            className="mobile-only"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            style={{
+              padding: 8,
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'none'
+            }}
+          >
+            <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
+              {mobileMenuOpen ? <path d="M6 18L18 6M6 6l12 12" /> : <path d="M4 6h16M4 12h16M4 18h16" />}
+            </svg>
+          </button>
+        </div>
+      </nav>
+
+      {/* 手機版底部導航 */}
+      <div className="mobile-only" style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'white',
+        borderTop: '1px solid #e2e8f0',
+        display: 'none',
+        zIndex: 1000,
+        padding: '8px 0 env(safe-area-inset-bottom)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+          {navItems.map(item => (
+            <Link
+              key={item.href}
+              href={item.href}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '8px 12px',
+                color: isActive(item.href) ? '#4299e1' : '#718096',
+                textDecoration: 'none',
+                fontSize: 11,
+                gap: 2
+              }}
+            >
+              <span style={{ fontSize: 20 }}>{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              padding: '8px 12px',
+              color: '#718096',
+              background: 'none',
+              border: 'none',
+              fontSize: 11,
+              gap: 2,
+              cursor: 'pointer'
+            }}
+          >
+            <span style={{ fontSize: 20 }}>☰</span>
+            更多
+          </button>
+        </div>
+      </div>
+
+      {/* 手機版側邊選單 */}
+      {mobileMenuOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 2000,
+            display: 'flex'
+          }}
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div style={{ flex: 1, background: 'rgba(0,0,0,0.5)' }} />
+          <div
+            style={{
+              width: '80%',
+              maxWidth: 300,
+              background: 'white',
+              height: '100%',
+              overflowY: 'auto',
+              animation: 'slideIn 0.2s ease'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: 20, borderBottom: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>{user?.name || user?.email}</div>
+              <div style={{ fontSize: 13, color: '#718096', marginTop: 4 }}>{user?.email}</div>
+            </div>
+            <div style={{ padding: '12px 0' }}>
+              {[...navItems, ...moreItems].map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '14px 20px',
+                    color: isActive(item.href) ? '#4299e1' : '#2d3748',
+                    background: isActive(item.href) ? '#ebf8ff' : 'transparent',
+                    textDecoration: 'none',
+                    fontSize: 15
+                  }}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{item.icon}</span>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+            <div style={{ padding: 20, borderTop: '1px solid #e2e8f0' }}>
               <button
                 onClick={handleLogout}
                 style={{
                   width: '100%',
-                  padding: '12px',
-                  backgroundColor: '#e53e3e',
+                  padding: 14,
+                  background: '#e53e3e',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500'
+                  borderRadius: 8,
+                  fontSize: 15,
+                  fontWeight: 500,
+                  cursor: 'pointer'
                 }}
               >
                 登出
@@ -335,95 +336,79 @@ export default function Layout({ children }) {
             </div>
           </div>
         </div>
-      </nav>
+      )}
 
       {/* 主內容區 */}
       <main style={{
-        maxWidth: '1400px',
+        maxWidth: 1200,
         margin: '0 auto',
-        padding: '20px 16px'
+        padding: '16px',
+        paddingBottom: 80 // 為手機底部導航留空間
       }}>
         {children}
       </main>
 
-      {/* 響應式樣式 */}
+      {/* 全局樣式 */}
       <style jsx global>{`
-        * {
-          box-sizing: border-box;
-        }
-
+        * { box-sizing: border-box; }
         body {
           margin: 0;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           -webkit-font-smoothing: antialiased;
         }
 
+        @keyframes slideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
         /* 桌面版 */
-        @media (min-width: 1024px) {
-          .desktop-nav {
-            display: flex !important;
-          }
-          .mobile-menu-btn {
-            display: none !important;
-          }
-          .mobile-menu {
-            display: none !important;
+        @media (min-width: 769px) {
+          .desktop-only { display: flex !important; }
+          .mobile-only { display: none !important; }
+        }
+
+        /* 手機版 */
+        @media (max-width: 768px) {
+          .desktop-only { display: none !important; }
+          .mobile-only { display: flex !important; }
+
+          main {
+            padding-bottom: 100px !important;
           }
         }
 
-        /* 平板與手機 */
-        @media (max-width: 1023px) {
-          .desktop-nav {
-            display: none !important;
-          }
-          .mobile-menu-btn {
-            display: block !important;
-          }
-          .hide-mobile {
-            display: none;
-          }
+        /* 防止橫向滾動 */
+        html, body {
+          overflow-x: hidden;
+          width: 100%;
         }
 
         /* 表格響應式 */
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
         @media (max-width: 768px) {
-          table {
-            display: block;
+          .table-responsive {
             overflow-x: auto;
-            white-space: nowrap;
-          }
-
-          .responsive-table {
-            font-size: 14px;
-          }
-
-          .responsive-table th,
-          .responsive-table td {
-            padding: 8px 12px !important;
+            -webkit-overflow-scrolling: touch;
           }
         }
 
-        /* 按鈕懸停效果 */
-        button:hover:not(:disabled) {
-          opacity: 0.9;
+        /* 輸入框樣式 */
+        input, select, textarea {
+          font-size: 16px !important; /* 防止 iOS 縮放 */
         }
 
-        /* 輸入框焦點樣式 */
-        input:focus, select:focus, textarea:focus {
-          outline: none;
-          border-color: #4299e1 !important;
-          box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
-        }
-
-        /* 卡片陰影 */
-        .card {
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        /* 載入動畫 */
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        /* 按鈕基本樣式 */
+        button {
+          font-family: inherit;
         }
       `}</style>
     </div>
