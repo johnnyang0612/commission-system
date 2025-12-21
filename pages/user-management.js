@@ -264,10 +264,10 @@ export default function UserManagement() {
                   <td>{user.email}</td>
                   <td>
                     {editingUserId === user.id && canChangeRoles() ? (
-                      <div className={styles.roleEdit}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
                           {[USER_ROLES.SALES, USER_ROLES.PM, USER_ROLES.LEADER, USER_ROLES.FINANCE, USER_ROLES.ADMIN].map(role => (
-                            <label key={role} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                            <label key={role} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', fontSize: '0.9rem' }}>
                               <input
                                 type="checkbox"
                                 checked={selectedRoles.includes(role)}
@@ -277,22 +277,24 @@ export default function UserManagement() {
                             </label>
                           ))}
                         </div>
-                        <button
-                          className={styles.saveButton}
-                          onClick={() => handleRoleUpdate(user.id, selectedRoles[0], selectedRoles)}
-                          disabled={selectedRoles.length === 0}
-                        >
-                          保存
-                        </button>
-                        <button
-                          className={styles.cancelButton}
-                          onClick={() => {
-                            setEditingUserId(null);
-                            setSelectedRoles([]);
-                          }}
-                        >
-                          取消
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            className={styles.saveButton}
+                            onClick={() => handleRoleUpdate(user.id, selectedRoles[0], selectedRoles)}
+                            disabled={selectedRoles.length === 0}
+                          >
+                            保存
+                          </button>
+                          <button
+                            className={styles.cancelButton}
+                            onClick={() => {
+                              setEditingUserId(null);
+                              setSelectedRoles([]);
+                            }}
+                          >
+                            取消
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <span
