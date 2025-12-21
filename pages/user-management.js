@@ -244,6 +244,7 @@ export default function UserManagement() {
           </div>
         </div>
 
+        {/* 桌面版表格 */}
         <div className={styles.tableContainer}>
           <table className={styles.table}>
             <thead>
@@ -308,8 +309,8 @@ export default function UserManagement() {
                   <td>{user.phone_number || '-'}</td>
                   <td>{user.mobile_number || '-'}</td>
                   <td>
-                    {user.bank_name && user.account_number 
-                      ? `${user.bank_name} ${user.account_number}` 
+                    {user.bank_name && user.account_number
+                      ? `${user.bank_name} ${user.account_number}`
                       : '-'
                     }
                   </td>
@@ -328,7 +329,6 @@ export default function UserManagement() {
                           className={styles.roleButton}
                           onClick={() => {
                             setEditingUserId(user.id);
-                            // 使用 roles 陣列或 fallback 到 role
                             const userRoles = user.roles && user.roles.length > 0 ? user.roles : (user.role ? [user.role] : ['sales']);
                             setSelectedRoles(userRoles);
                           }}
@@ -350,6 +350,73 @@ export default function UserManagement() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* 手機版卡片 */}
+        <div className={styles.mobileCard}>
+          {users.map(user => (
+            <div key={user.id} className={styles.userCard}>
+              <div className={styles.userCardHeader}>
+                <div>
+                  <div className={styles.userCardName}>{user.name}</div>
+                  <div className={styles.userCardEmail}>{user.email}</div>
+                </div>
+                <span className={styles.roleBadge} data-role={user.role}>
+                  {getRolesDisplayName(user.roles, user.role)}
+                </span>
+              </div>
+              <div className={styles.userCardBody}>
+                <div className={styles.userCardRow}>
+                  <span className={styles.userCardLabel}>電話</span>
+                  <span className={styles.userCardValue}>{user.phone_number || '-'}</span>
+                </div>
+                <div className={styles.userCardRow}>
+                  <span className={styles.userCardLabel}>手機</span>
+                  <span className={styles.userCardValue}>{user.mobile_number || '-'}</span>
+                </div>
+                <div className={styles.userCardRow}>
+                  <span className={styles.userCardLabel}>銀行帳戶</span>
+                  <span className={styles.userCardValue}>
+                    {user.bank_name && user.account_number
+                      ? `${user.bank_name} ${user.account_number.slice(-4)}`
+                      : '-'
+                    }
+                  </span>
+                </div>
+              </div>
+              <div className={styles.userCardActions}>
+                {canEditUserDetails() && (
+                  <button
+                    className={styles.editButton}
+                    onClick={() => setEditingUserData(user)}
+                  >
+                    編輯資料
+                  </button>
+                )}
+                {canChangeRoles() && (
+                  <button
+                    className={styles.roleButton}
+                    onClick={() => {
+                      setEditingUserId(user.id);
+                      const userRoles = user.roles && user.roles.length > 0 ? user.roles : (user.role ? [user.role] : ['sales']);
+                      setSelectedRoles(userRoles);
+                      setEditingUserData(user);
+                    }}
+                  >
+                    改角色
+                  </button>
+                )}
+                {canDeleteUsers() && user.id !== currentUser?.id && (
+                  <button
+                    className={styles.deleteButton}
+                    onClick={() => handleDeleteUser(user.id)}
+                  >
+                    刪除
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* 新增用戶表單 */}
