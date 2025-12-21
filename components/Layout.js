@@ -294,6 +294,23 @@ export default function Layout({ children }) {
                 個人資料設定
               </Link>
 
+              <Link
+                href="/profile#line-binding"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  padding: '16px 24px',
+                  color: '#06C755',
+                  textDecoration: 'none',
+                  fontSize: 16
+                }}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <span style={{ fontSize: 20 }}>💬</span>
+                綁定 LINE 帳號
+              </Link>
+
               <div style={{ height: 1, background: '#e2e8f0', margin: '8px 24px' }} />
 
               <button
