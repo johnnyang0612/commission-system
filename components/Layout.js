@@ -20,6 +20,9 @@ export default function Layout({ children }) {
     if (path === '/finance') {
       return router.pathname === '/finance' || router.pathname === '/payments' || router.pathname === '/commissions' || router.pathname === '/my-payouts' || router.pathname === '/labor-receipts';
     }
+    if (path === '/ai-generator') {
+      return router.pathname === '/ai-generator' || router.pathname === '/knowledge-base';
+    }
     return router.pathname === path;
   };
 
@@ -31,7 +34,9 @@ export default function Layout({ children }) {
   };
 
   const isAdmin = user && user.role === USER_ROLES.ADMIN;
+  const isLeader = user && user.role === USER_ROLES.LEADER;
   const isFinance = user && (user.role === USER_ROLES.ADMIN || user.role === USER_ROLES.FINANCE);
+  const canManageUsers = isAdmin || isLeader;
 
   if (loading) {
     return (
@@ -50,12 +55,13 @@ export default function Layout({ children }) {
     return null;
   }
 
-  // 新的 4 入口導航
+  // 5 入口導航
   const navItems = [
     { href: '/dashboard', label: '儀表板', icon: '📊' },
     { href: '/cases', label: '案件', icon: '📁' },
     { href: isFinance ? '/finance' : '/my-payouts', label: isFinance ? '財務' : '我的分潤', icon: '💰' },
-    ...(isAdmin ? [{ href: '/settings', label: '設定', icon: '⚙️' }] : []),
+    { href: '/ai-generator', label: '工具', icon: '🤖' },
+    ...(canManageUsers ? [{ href: '/settings', label: '設定', icon: '⚙️' }] : []),
   ];
 
   return (
@@ -126,9 +132,25 @@ export default function Layout({ children }) {
               paddingLeft: 16,
               borderLeft: '1px solid rgba(255,255,255,0.2)'
             }}>
-              <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14 }}>
+              <Link
+                href="/profile"
+                style={{
+                  color: 'rgba(255,255,255,0.9)',
+                  fontSize: 14,
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  transition: 'all 0.2s',
+                  background: 'rgba(255,255,255,0.1)'
+                }}
+                title="個人資料設定"
+              >
+                <span style={{ fontSize: 16 }}>👤</span>
                 {user?.name || user?.email?.split('@')[0]}
-              </span>
+              </Link>
               <button
                 onClick={handleLogout}
                 style={{

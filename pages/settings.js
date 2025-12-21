@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../utils/supabaseClient';
-import { getCurrentUser, getCurrentUserRole, USER_ROLES } from '../utils/permissions';
+import { USER_ROLES } from '../utils/permissions';
 
 export default function Settings() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('users');
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentRole, setCurrentRole] = useState(null);
   const [users, setUsers] = useState([]);
   const [documents, setDocuments] = useState([]);
 
@@ -16,11 +17,19 @@ export default function Settings() {
   }, []);
 
   async function checkAccess() {
-    const user = getCurrentUser();
-    const role = getCurrentUserRole();
-    setCurrentUser(user);
+    // 從 simpleAuth 取得當前用戶
+    const storedUser = localStorage.getItem('currentUser');
+    if (!storedUser) {
+      router.push('/login');
+      return;
+    }
 
-    if (role !== USER_ROLES.ADMIN) {
+    const userData = JSON.parse(storedUser);
+    setCurrentUser(userData);
+    setCurrentRole(userData.role);
+
+    // admin 和 leader 都可以進入設定頁面
+    if (userData.role !== USER_ROLES.ADMIN && userData.role !== USER_ROLES.LEADER) {
       router.push('/dashboard');
       return;
     }
@@ -28,6 +37,8 @@ export default function Settings() {
     await loadData();
     setLoading(false);
   }
+
+  const isAdmin = currentRole === USER_ROLES.ADMIN;
 
   async function loadData() {
     await Promise.all([
@@ -74,6 +85,12 @@ export default function Settings() {
   async function handleRoleChange(userId, newRole) {
     if (!supabase) return;
 
+    // Leader 不能將用戶設為 admin
+    if (!isAdmin && newRole === 'admin') {
+      alert('只有管理員可以設定管理員角色');
+      return;
+    }
+
     const { error } = await supabase
       .from('users')
       .update({ role: newRole })
@@ -101,9 +118,10 @@ export default function Settings() {
     }
   }
 
+  // 根據角色顯示不同的 tabs
   const tabs = [
     { id: 'users', label: '用戶管理', icon: '👥' },
-    { id: 'knowledge', label: '知識庫', icon: '📚' }
+    ...(isAdmin ? [{ id: 'knowledge', label: '知識庫', icon: '📚' }] : [])
   ];
 
   const styles = {
@@ -250,12 +268,15 @@ export default function Settings() {
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
                       style={styles.roleSelect}
+                      disabled={user.id === currentUser?.id}
                     >
-                      {Object.entries(ROLE_NAMES).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
+                      {Object.entries(ROLE_NAMES)
+                        .filter(([value]) => isAdmin || value !== 'admin')
+                        .map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
                     </select>
-                    {user.id !== currentUser?.id && (
+                    {user.id !== currentUser?.id && isAdmin && (
                       <button
                         onClick={() => handleDeleteUser(user.id)}
                         style={styles.deleteBtn}

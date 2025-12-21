@@ -21,7 +21,38 @@ export default function ProjectDetail() {
   const [showAddInstallment, setShowAddInstallment] = useState(false);
   const [showAddCost, setShowAddCost] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [showAIQuotation, setShowAIQuotation] = useState(false);
+  const [aiQuotationForm, setAIQuotationForm] = useState({
+    requirements: '',
+    budget_range: '',
+    additional_context: ''
+  });
+  const [aiQuotationResult, setAIQuotationResult] = useState(null);
+  const [aiQuotationLoading, setAIQuotationLoading] = useState(false);
   const [editFormData, setEditFormData] = useState({});
+
+  // 新增勞報單和收款登錄相關狀態
+  const [showAddLaborReceipt, setShowAddLaborReceipt] = useState(false);
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [laborReceiptForm, setLaborReceiptForm] = useState({
+    installment_id: '',
+    user_id: '',
+    gross_amount: '',
+    notes: ''
+  });
+  const [paymentForm, setPaymentForm] = useState({
+    installment_id: '',
+    payment_date: new Date().toISOString().split('T')[0],
+    actual_amount: '',
+    payment_method: 'bank_transfer',
+    notes: ''
+  });
+  const [calculatedAmounts, setCalculatedAmounts] = useState({
+    tax_amount: 0,
+    insurance_amount: 0,
+    net_amount: 0
+  });
   const [userRole, setUserRole] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [installmentForm, setInstallmentForm] = useState({
@@ -67,6 +98,7 @@ export default function ProjectDetail() {
       fetchCommissions();
       fetchCosts();
       fetchUsers();
+      fetchAllUsers();
     }
   }, [id]);
   
@@ -124,12 +156,153 @@ export default function ProjectDetail() {
       .select('*')
       .in('role', ['sales', 'leader'])
       .order('name');
-    
+
     if (error) {
       console.error('Error fetching users:', error);
     } else {
       console.log('Fetched users:', data);
       setUsers(data || []);
+    }
+  }
+
+  async function fetchAllUsers() {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching all users:', error);
+    } else {
+      setAllUsers(data || []);
+    }
+  }
+
+  // 計算勞報單實領金額
+  function calculateNetAmount(grossAmount, user) {
+    if (!grossAmount || grossAmount <= 0) {
+      setCalculatedAmounts({ tax_amount: 0, insurance_amount: 0, net_amount: 0 });
+      return;
+    }
+
+    const amount = parseFloat(grossAmount);
+    const taxRate = user?.withholding_tax_rate || 10;
+    const taxAmount = amount * (taxRate / 100);
+
+    // 二代健保：單次給付達 20,000 元以上，扣 2.11%
+    const insuranceAmount = amount >= 20000 ? amount * 0.0211 : 0;
+
+    const netAmount = amount - taxAmount - insuranceAmount;
+
+    setCalculatedAmounts({
+      tax_amount: Math.round(taxAmount),
+      insurance_amount: Math.round(insuranceAmount),
+      net_amount: Math.round(netAmount)
+    });
+  }
+
+  // 新增勞報單
+  async function handleAddLaborReceipt(e) {
+    e.preventDefault();
+    if (!supabase) return;
+
+    const selectedUser = allUsers.find(u => u.id === laborReceiptForm.user_id);
+    if (!selectedUser) {
+      alert('請選擇人員');
+      return;
+    }
+
+    const selectedInstallment = installments.find(i => i.id === laborReceiptForm.installment_id);
+
+    const grossAmount = parseFloat(laborReceiptForm.gross_amount);
+    const taxRate = selectedUser.withholding_tax_rate || 10;
+    const taxAmount = Math.round(grossAmount * (taxRate / 100));
+    const insuranceAmount = grossAmount >= 20000 ? Math.round(grossAmount * 0.0211) : 0;
+    const netAmount = grossAmount - taxAmount - insuranceAmount;
+
+    // 生成勞報單編號
+    const now = new Date();
+    const receiptNumber = `LR${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+
+    const laborReceiptData = {
+      receipt_number: receiptNumber,
+      project_id: id,
+      user_id: laborReceiptForm.user_id,
+      recipient_name: selectedUser.name,
+      recipient_id_number: selectedUser.national_id || '',
+      recipient_address: selectedUser.mailing_address || selectedUser.residential_address || '',
+      bank_name: selectedUser.bank_name || '',
+      bank_code: selectedUser.bank_code || '',
+      account_number: selectedUser.account_number || '',
+      gross_amount: grossAmount,
+      tax_amount: taxAmount,
+      insurance_amount: insuranceAmount,
+      net_amount: netAmount,
+      payment_date: new Date().toISOString().split('T')[0],
+      notes: laborReceiptForm.notes || `專案: ${project?.project_name}${selectedInstallment ? ` - 第${selectedInstallment.installment_number}期` : ''}`,
+      workflow_status: 'pending_signature',
+      installment_id: laborReceiptForm.installment_id || null
+    };
+
+    const { error } = await supabase
+      .from('labor_receipts')
+      .insert([laborReceiptData]);
+
+    if (error) {
+      console.error('新增勞報單失敗:', error);
+      alert('新增勞報單失敗: ' + error.message);
+    } else {
+      alert('勞報單新增成功！');
+      setShowAddLaborReceipt(false);
+      setLaborReceiptForm({
+        installment_id: '',
+        user_id: '',
+        gross_amount: '',
+        notes: ''
+      });
+      setCalculatedAmounts({ tax_amount: 0, insurance_amount: 0, net_amount: 0 });
+    }
+  }
+
+  // 登錄收款
+  async function handleAddPayment(e) {
+    e.preventDefault();
+    if (!supabase || !paymentForm.installment_id) return;
+
+    const selectedInstallment = installments.find(i => i.id === paymentForm.installment_id);
+    if (!selectedInstallment) {
+      alert('請選擇期數');
+      return;
+    }
+
+    const actualAmount = parseFloat(paymentForm.actual_amount);
+
+    const { error } = await supabase
+      .from('project_installments')
+      .update({
+        status: 'paid',
+        payment_date: paymentForm.payment_date,
+        actual_amount: actualAmount,
+        payment_method: paymentForm.payment_method,
+        payment_notes: paymentForm.notes
+      })
+      .eq('id', paymentForm.installment_id);
+
+    if (error) {
+      console.error('登錄收款失敗:', error);
+      alert('登錄收款失敗: ' + error.message);
+    } else {
+      alert('收款登錄成功！');
+      setShowAddPayment(false);
+      setPaymentForm({
+        installment_id: '',
+        payment_date: new Date().toISOString().split('T')[0],
+        actual_amount: '',
+        payment_method: 'bank_transfer',
+        notes: ''
+      });
+      fetchInstallments();
     }
   }
 
@@ -759,6 +932,57 @@ export default function ProjectDetail() {
     }
   }
 
+  // AI 報價生成功能
+  async function generateAIQuotation(e) {
+    e.preventDefault();
+
+    if (!aiQuotationForm.requirements.trim()) {
+      alert('請輸入專案需求描述');
+      return;
+    }
+
+    setAIQuotationLoading(true);
+    setAIQuotationResult(null);
+
+    try {
+      const response = await fetch('/api/documents/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_type: 'quotation',
+          client_name: project.client_name,
+          project_name: project.project_name,
+          requirements: aiQuotationForm.requirements,
+          budget_range: aiQuotationForm.budget_range || `NT$ ${project.amount?.toLocaleString()}`,
+          additional_context: aiQuotationForm.additional_context,
+          reference_count: 3
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '生成失敗');
+      }
+
+      setAIQuotationResult(data);
+    } catch (error) {
+      console.error('AI 報價生成錯誤:', error);
+      alert('AI 報價生成失敗: ' + error.message);
+    } finally {
+      setAIQuotationLoading(false);
+    }
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('已複製到剪貼簿');
+    }).catch(err => {
+      console.error('複製失敗:', err);
+      alert('複製失敗，請手動複製');
+    });
+  }
+
   async function deleteProject() {
     if (!supabase || !project) {
       console.log('Missing supabase or project:', { supabase: !!supabase, project: !!project });
@@ -1251,7 +1475,7 @@ export default function ProjectDetail() {
 
   return (
     <div>
-      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
         <button
           onClick={() => router.push('/')}
           style={{
@@ -1265,20 +1489,249 @@ export default function ProjectDetail() {
         >
           ← 返回專案列表
         </button>
-        <button
-          onClick={deleteProject}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: '#e74c3c',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          刪除專案
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setShowAIQuotation(!showAIQuotation)}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: showAIQuotation ? '#6c757d' : '#8b5cf6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span style={{ fontSize: '16px' }}>🤖</span>
+            {showAIQuotation ? '關閉 AI 報價' : 'AI 報價'}
+          </button>
+          <button
+            onClick={deleteProject}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#e74c3c',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            刪除專案
+          </button>
+        </div>
       </div>
+
+      {/* AI 報價區塊 */}
+      {showAIQuotation && (
+        <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', marginBottom: '2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '2px solid #8b5cf6' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
+            <span style={{ fontSize: '28px' }}>🤖</span>
+            <div>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>AI 智慧報價生成</h3>
+              <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#64748b' }}>
+                輸入專案需求，AI 將根據歷史資料生成專業報價單
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={generateAIQuotation}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, color: '#374151' }}>
+                專案需求描述 <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <textarea
+                value={aiQuotationForm.requirements}
+                onChange={(e) => setAIQuotationForm({ ...aiQuotationForm, requirements: e.target.value })}
+                placeholder="請詳細描述客戶的專案需求，例如：功能需求、技術規格、時程要求等..."
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+                required
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, color: '#374151' }}>
+                  預算範圍
+                </label>
+                <input
+                  type="text"
+                  value={aiQuotationForm.budget_range}
+                  onChange={(e) => setAIQuotationForm({ ...aiQuotationForm, budget_range: e.target.value })}
+                  placeholder={`預設：NT$ ${project.amount?.toLocaleString()}`}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500, color: '#374151' }}>
+                  補充資訊
+                </label>
+                <input
+                  type="text"
+                  value={aiQuotationForm.additional_context}
+                  onChange={(e) => setAIQuotationForm({ ...aiQuotationForm, additional_context: e.target.value })}
+                  placeholder="其他需要 AI 參考的背景資訊"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginBottom: aiQuotationResult ? '1.5rem' : 0 }}>
+              <button
+                type="submit"
+                disabled={aiQuotationLoading}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: aiQuotationLoading ? '#a78bfa' : '#8b5cf6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: aiQuotationLoading ? 'not-allowed' : 'pointer',
+                  fontSize: '15px',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {aiQuotationLoading ? (
+                  <>
+                    <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    生成報價單
+                  </>
+                )}
+              </button>
+              {aiQuotationResult && (
+                <button
+                  type="button"
+                  onClick={() => setAIQuotationResult(null)}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#f1f5f9',
+                    color: '#64748b',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '15px',
+                    fontWeight: 500
+                  }}
+                >
+                  清除結果
+                </button>
+              )}
+            </div>
+          </form>
+
+          {/* AI 生成結果 */}
+          {aiQuotationResult && (
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '20px' }}>📄</span>
+                  <h4 style={{ margin: 0, color: '#1e293b' }}>生成結果</h4>
+                  {aiQuotationResult.references_used > 0 && (
+                    <span style={{
+                      fontSize: '12px',
+                      padding: '2px 8px',
+                      backgroundColor: '#ddd6fe',
+                      color: '#7c3aed',
+                      borderRadius: '12px'
+                    }}>
+                      參考了 {aiQuotationResult.references_used} 份歷史文件
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => copyToClipboard(aiQuotationResult.generated_content)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span>📋</span>
+                  複製內容
+                </button>
+              </div>
+
+              <div style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '1.5rem',
+                maxHeight: '500px',
+                overflowY: 'auto',
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'inherit',
+                fontSize: '14px',
+                lineHeight: '1.8',
+                color: '#374151'
+              }}>
+                {aiQuotationResult.generated_content}
+              </div>
+
+              {aiQuotationResult.reference_documents && aiQuotationResult.reference_documents.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                  <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px' }}>參考文件：</p>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {aiQuotationResult.reference_documents.map((doc, index) => (
+                      <span
+                        key={index}
+                        style={{
+                          fontSize: '12px',
+                          padding: '4px 10px',
+                          backgroundColor: '#f1f5f9',
+                          borderRadius: '6px',
+                          color: '#64748b'
+                        }}
+                      >
+                        {doc.document_name} ({doc.similarity})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', marginBottom: '2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <h2 style={{ marginTop: 0 }}>專案詳情：{project.project_code}</h2>
@@ -1441,6 +1894,36 @@ export default function ProjectDetail() {
                 }}
               >
                 {showAddInstallment ? '取消' : '新增期數'}
+              </button>
+            )}
+            {canViewFinancialData(userRole) && (
+              <button
+                onClick={() => setShowAddPayment(!showAddPayment)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#27ae60',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                {showAddPayment ? '取消' : '💰 登錄收款'}
+              </button>
+            )}
+            {canViewFinancialData(userRole) && (
+              <button
+                onClick={() => setShowAddLaborReceipt(!showAddLaborReceipt)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#8b5cf6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                {showAddLaborReceipt ? '取消' : '📄 新增勞報單'}
               </button>
             )}
           </div>
@@ -1803,6 +2286,274 @@ export default function ProjectDetail() {
                 }}
               >
                 確認新增
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* 登錄收款表單 */}
+        {showAddPayment && canViewFinancialData(userRole) && (
+          <form onSubmit={handleAddPayment} style={{
+            backgroundColor: '#e8f5e9',
+            padding: '1.5rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            border: '1px solid #27ae60'
+          }}>
+            <h4 style={{ margin: '0 0 1rem 0', color: '#27ae60' }}>💰 登錄收款</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>選擇期數 *</label>
+                <select
+                  value={paymentForm.installment_id}
+                  onChange={(e) => {
+                    const inst = installments.find(i => i.id === e.target.value);
+                    setPaymentForm({
+                      ...paymentForm,
+                      installment_id: e.target.value,
+                      actual_amount: inst ? inst.amount : ''
+                    });
+                  }}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="">請選擇期數</option>
+                  {installments.filter(i => i.status !== 'paid').map(inst => (
+                    <option key={inst.id} value={inst.id}>
+                      第 {inst.installment_number} 期 - NT$ {inst.amount?.toLocaleString()} ({inst.due_date})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>付款日期 *</label>
+                <input
+                  type="date"
+                  value={paymentForm.payment_date}
+                  onChange={(e) => setPaymentForm({...paymentForm, payment_date: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>實收金額 *</label>
+                <input
+                  type="number"
+                  value={paymentForm.actual_amount}
+                  onChange={(e) => setPaymentForm({...paymentForm, actual_amount: e.target.value})}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>付款方式</label>
+                <select
+                  value={paymentForm.payment_method}
+                  onChange={(e) => setPaymentForm({...paymentForm, payment_method: e.target.value})}
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="bank_transfer">銀行轉帳</option>
+                  <option value="cash">現金</option>
+                  <option value="check">支票</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>備註</label>
+              <input
+                type="text"
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({...paymentForm, notes: e.target.value})}
+                placeholder="可填寫發票號碼、備註等..."
+                style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                type="submit"
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#27ae60',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                確認收款
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddPayment(false)}
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* 新增勞報單表單 */}
+        {showAddLaborReceipt && canViewFinancialData(userRole) && (
+          <form onSubmit={handleAddLaborReceipt} style={{
+            backgroundColor: '#f5f3ff',
+            padding: '1.5rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            border: '1px solid #8b5cf6'
+          }}>
+            <h4 style={{ margin: '0 0 1rem 0', color: '#8b5cf6' }}>📄 新增勞報單</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>關聯期數</label>
+                <select
+                  value={laborReceiptForm.installment_id}
+                  onChange={(e) => {
+                    const inst = installments.find(i => i.id === e.target.value);
+                    setLaborReceiptForm({
+                      ...laborReceiptForm,
+                      installment_id: e.target.value,
+                      gross_amount: inst ? inst.commission_amount || '' : ''
+                    });
+                    if (inst && laborReceiptForm.user_id) {
+                      const user = allUsers.find(u => u.id === laborReceiptForm.user_id);
+                      calculateNetAmount(inst.commission_amount, user);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="">不關聯期數 / 直接輸入金額</option>
+                  {installments.map(inst => (
+                    <option key={inst.id} value={inst.id}>
+                      第 {inst.installment_number} 期 - 應撥分潤: NT$ {(inst.commission_amount || 0).toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>人員 *</label>
+                <select
+                  value={laborReceiptForm.user_id}
+                  onChange={(e) => {
+                    const user = allUsers.find(u => u.id === e.target.value);
+                    setLaborReceiptForm({...laborReceiptForm, user_id: e.target.value});
+                    if (laborReceiptForm.gross_amount) {
+                      calculateNetAmount(laborReceiptForm.gross_amount, user);
+                    }
+                  }}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="">請選擇人員</option>
+                  {allUsers.map(user => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} ({user.email}) - 扣繳率 {user.withholding_tax_rate || 10}%
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>分潤金額 (稅前) *</label>
+                <input
+                  type="number"
+                  value={laborReceiptForm.gross_amount}
+                  onChange={(e) => {
+                    setLaborReceiptForm({...laborReceiptForm, gross_amount: e.target.value});
+                    const user = allUsers.find(u => u.id === laborReceiptForm.user_id);
+                    calculateNetAmount(e.target.value, user);
+                  }}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>備註</label>
+                <input
+                  type="text"
+                  value={laborReceiptForm.notes}
+                  onChange={(e) => setLaborReceiptForm({...laborReceiptForm, notes: e.target.value})}
+                  placeholder="可填寫說明..."
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </div>
+            </div>
+
+            {/* 自動計算預覽 */}
+            {laborReceiptForm.gross_amount > 0 && (
+              <div style={{
+                padding: '1rem',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                marginBottom: '1rem',
+                border: '1px solid #e2e8f0'
+              }}>
+                <h5 style={{ margin: '0 0 0.5rem 0', color: '#64748b' }}>自動計算預覽</h5>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', textAlign: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>稅前金額</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1e293b' }}>
+                      NT$ {parseFloat(laborReceiptForm.gross_amount || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>扣繳稅額</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ef4444' }}>
+                      -NT$ {calculatedAmounts.tax_amount.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>二代健保</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#f59e0b' }}>
+                      -NT$ {calculatedAmounts.insurance_amount.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b' }}>實領金額</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>
+                      NT$ {calculatedAmounts.net_amount.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                type="submit"
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#8b5cf6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                確認新增
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddLaborReceipt(false);
+                  setCalculatedAmounts({ tax_amount: 0, insurance_amount: 0, net_amount: 0 });
+                }}
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                取消
               </button>
             </div>
           </form>
