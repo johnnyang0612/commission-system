@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@supabase/supabase-js": "^2.39.3",
     "file-saver": "^2.0.5",
     "jspdf": "^3.0.1",
