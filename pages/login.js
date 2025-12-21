@@ -68,11 +68,13 @@ export default function Login() {
     }}>
       <div style={{
         backgroundColor: 'white',
-        padding: '3rem',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+        padding: '2rem',
+        borderRadius: '12px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
         textAlign: 'center',
-        minWidth: '400px'
+        width: '100%',
+        maxWidth: '400px',
+        margin: '0 16px'
       }}>
         <h1 style={{ color: '#2c3e50', marginBottom: '1rem' }}>
           川輝科技
