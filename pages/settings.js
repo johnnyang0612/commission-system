@@ -100,6 +100,50 @@ export default function Settings() {
     }
   }
 
+  // 多角色切換
+  async function handleToggleRole(userId, toggleRole, currentRoles) {
+    if (!supabase) return;
+
+    // Leader 不能設定 admin 角色
+    if (!isAdmin && toggleRole === 'admin') {
+      alert('只有管理員可以設定管理員角色');
+      return;
+    }
+
+    const roles = currentRoles || [];
+    let newRoles;
+
+    if (roles.includes(toggleRole)) {
+      // 移除角色（但至少保留一個）
+      newRoles = roles.filter(r => r !== toggleRole);
+      if (newRoles.length === 0) {
+        alert('用戶至少需要一個角色');
+        return;
+      }
+    } else {
+      // 新增角色
+      newRoles = [...roles, toggleRole];
+    }
+
+    // 主要角色設為陣列中優先級最高的
+    const rolePriority = ['admin', 'finance', 'leader', 'pm', 'sales'];
+    const primaryRole = rolePriority.find(r => newRoles.includes(r)) || newRoles[0];
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        role: primaryRole,
+        roles: newRoles
+      })
+      .eq('id', userId);
+
+    if (error) {
+      alert('更新失敗: ' + error.message);
+    } else {
+      fetchUsers();
+    }
+  }
+
   async function handleDeleteUser(userId) {
     if (!confirm('確定要刪除這個用戶嗎？')) return;
 
@@ -254,25 +298,53 @@ export default function Settings() {
                     <div style={styles.userEmail}>{user.email}</div>
                   </div>
                   <div style={styles.userActions}>
-                    <span style={{
-                      ...styles.badge,
-                      background: roleStyle.bg,
-                      color: roleStyle.color
-                    }}>
-                      {ROLE_NAMES[user.role] || user.role}
-                    </span>
-                    <select
-                      value={user.role}
-                      onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                      style={styles.roleSelect}
-                      disabled={user.id === authUser?.id}
-                    >
-                      {Object.entries(ROLE_NAMES)
-                        .filter(([value]) => isAdmin || value !== 'admin')
-                        .map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
+                    {/* 顯示所有角色標籤 */}
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {(user.roles && user.roles.length > 0 ? user.roles : [user.role]).map(r => {
+                        const rs = ROLE_COLORS[r] || ROLE_COLORS.sales;
+                        return (
+                          <span key={r} style={{
+                            ...styles.badge,
+                            background: rs.bg,
+                            color: rs.color
+                          }}>
+                            {ROLE_NAMES[r] || r}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {/* 多角色勾選 */}
+                    {user.id !== authUser?.id && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 8 }}>
+                        {Object.entries(ROLE_NAMES)
+                          .filter(([value]) => isAdmin || value !== 'admin')
+                          .map(([value, label]) => {
+                            const userRoles = user.roles || [user.role];
+                            const isChecked = userRoles.includes(value);
+                            return (
+                              <label key={value} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                padding: '4px 8px',
+                                borderRadius: 4,
+                                background: isChecked ? '#e0f2fe' : '#f1f5f9',
+                                border: isChecked ? '1px solid #0ea5e9' : '1px solid #e2e8f0'
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleToggleRole(user.id, value, userRoles)}
+                                  style={{ margin: 0 }}
+                                />
+                                {label}
+                              </label>
+                            );
+                          })}
+                      </div>
+                    )}
                     {user.id !== authUser?.id && isAdmin && (
                       <button
                         onClick={() => handleDeleteUser(user.id)}
