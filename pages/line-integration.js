@@ -16,6 +16,7 @@ export default function LineIntegration() {
   const [lineGroups, setLineGroups] = useState([]);
   const [prospects, setProspects] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [staffUsers, setStaffUsers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,12 +25,14 @@ export default function LineIntegration() {
   const [filterType, setFilterType] = useState('all');
   const [aiSummary, setAiSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [groupMembers, setGroupMembers] = useState([]);
 
   useEffect(() => {
     if (!authLoading && user) {
       fetchLineGroups();
       fetchProspects();
       fetchProjects();
+      fetchStaffUsers();
     }
   }, [authLoading, user]);
 
@@ -37,6 +40,7 @@ export default function LineIntegration() {
     if (selectedGroup) {
       fetchMessages(selectedGroup.group_id);
       fetchFiles(selectedGroup.group_id);
+      fetchGroupMembers(selectedGroup.group_id);
       setAiSummary(null);
     }
   }, [selectedGroup]);
@@ -87,6 +91,40 @@ export default function LineIntegration() {
       setProjects(data || []);
     } catch (error) {
       console.error('取得專案錯誤:', error);
+    }
+  }
+
+  async function fetchStaffUsers() {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, email, role')
+        .in('role', ['admin', 'leader', 'pm', 'sales'])
+        .order('name');
+
+      if (error) throw error;
+      setStaffUsers(data || []);
+    } catch (error) {
+      console.error('取得員工錯誤:', error);
+    }
+  }
+
+  async function fetchGroupMembers(groupId) {
+    try {
+      const { data, error } = await supabase
+        .from('line_group_members')
+        .select(`
+          *,
+          users:user_id(id, name, role)
+        `)
+        .eq('group_id', groupId)
+        .order('is_project_owner', { ascending: false });
+
+      if (error) throw error;
+      setGroupMembers(data || []);
+    } catch (error) {
+      console.error('取得群組成員錯誤:', error);
+      setGroupMembers([]);
     }
   }
 
@@ -612,6 +650,53 @@ export default function LineIntegration() {
               </select>
             </div>
 
+            {/* 群組成員（自動偵測） */}
+            {groupMembers.length > 0 && (
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f0fdf4', borderRadius: '8px' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#166534' }}>
+                  👥 群組內員工（自動偵測）
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {groupMembers.map(m => (
+                    <span key={m.id} style={{
+                      padding: '0.25rem 0.75rem',
+                      backgroundColor: m.is_project_owner ? '#fef3c7' : '#e5e7eb',
+                      borderRadius: '20px',
+                      fontSize: '0.85rem',
+                      border: m.is_project_owner ? '2px solid #f59e0b' : 'none'
+                    }}>
+                      {m.is_project_owner && '⭐ '}
+                      {m.users?.name || '未知'}
+                      <span style={{ color: '#666', marginLeft: '0.25rem' }}>({m.role})</span>
+                    </span>
+                  ))}
+                </div>
+                <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.5rem' }}>
+                  ⭐ = PO (業務自動偵測) • 會議提醒會發給所有群組成員
+                </p>
+              </div>
+            )}
+
+            {/* Project Owner (手動指定) */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                Project Owner (手動指定)
+              </label>
+              <select
+                id="owner-select"
+                defaultValue={selectedGroup.owner_user_id || ''}
+                style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
+              >
+                <option value="">-- 自動偵測 --</option>
+                {staffUsers.map(u => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                ))}
+              </select>
+              <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
+                如果群組沒有業務，可手動指定 PO
+              </p>
+            </div>
+
             {/* 備註 */}
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>備註</label>
@@ -636,11 +721,13 @@ export default function LineIntegration() {
                   const groupType = document.getElementById('group-type').value;
                   const prospectId = document.getElementById('prospect-select').value || null;
                   const projectId = document.getElementById('project-select').value || null;
+                  const ownerId = document.getElementById('owner-select').value || null;
                   const notes = document.getElementById('notes-input').value;
                   updateGroupSettings(selectedGroup.group_id, {
                     group_type: groupType,
                     prospect_id: prospectId,
                     project_id: projectId,
+                    owner_user_id: ownerId,
                     notes: notes
                   });
                 }}

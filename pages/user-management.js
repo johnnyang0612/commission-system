@@ -18,6 +18,7 @@ export default function UserManagement() {
     email: '',
     name: '',
     role: 'sales',
+    roles: ['sales'],
     phone_number: '',
     mobile_number: '',
     registered_address: '',
@@ -28,6 +29,7 @@ export default function UserManagement() {
     account_number: '',
     account_name: ''
   });
+  const [selectedRoles, setSelectedRoles] = useState([]);
 
   useEffect(() => {
     checkUserAndLoadData();
@@ -74,18 +76,21 @@ export default function UserManagement() {
     }
   };
 
-  const handleRoleUpdate = async (userId, newRole) => {
+  const handleRoleUpdate = async (userId, primaryRole, roles = []) => {
     try {
       const { error } = await supabase
         .from('users')
-        .update({ role: newRole })
+        .update({
+          role: primaryRole,  // 主要角色（向後相容）
+          roles: roles        // 所有角色
+        })
         .eq('id', userId);
-      
+
       if (error) throw error;
-      
+
       alert('角色更新成功');
       setEditingUserId(null);
-      setSelectedRole('');
+      setSelectedRoles([]);
       fetchUsers();
     } catch (error) {
       console.error('Error updating role:', error);
@@ -127,6 +132,7 @@ export default function UserManagement() {
         email: '',
         name: '',
         role: 'sales',
+        roles: ['sales'],
         phone_number: '',
         mobile_number: '',
         registered_address: '',
@@ -179,14 +185,34 @@ export default function UserManagement() {
     return currentUser?.role === USER_ROLES.ADMIN;
   };
 
+  const ROLE_NAMES = {
+    [USER_ROLES.ADMIN]: '管理員',
+    [USER_ROLES.FINANCE]: '財務',
+    [USER_ROLES.LEADER]: '主管',
+    [USER_ROLES.PM]: 'PM',
+    [USER_ROLES.SALES]: '業務'
+  };
+
   const getRoleDisplayName = (role) => {
-    const roleNames = {
-      [USER_ROLES.ADMIN]: '管理員',
-      [USER_ROLES.FINANCE]: '財務',
-      [USER_ROLES.LEADER]: '主管',
-      [USER_ROLES.SALES]: '業務'
-    };
-    return roleNames[role] || role;
+    return ROLE_NAMES[role] || role;
+  };
+
+  const getRolesDisplayName = (roles, role) => {
+    // 優先使用 roles 陣列，fallback 到 role
+    const userRoles = roles && roles.length > 0 ? roles : (role ? [role] : []);
+    if (userRoles.length === 0) return '-';
+    return userRoles.map(r => ROLE_NAMES[r] || r).join(' + ');
+  };
+
+  const toggleRole = (role, currentRoles, setRoles) => {
+    if (currentRoles.includes(role)) {
+      // 移除角色（但至少保留一個）
+      if (currentRoles.length > 1) {
+        setRoles(currentRoles.filter(r => r !== role));
+      }
+    } else {
+      setRoles([...currentRoles, role]);
+    }
   };
 
   if (loading) {
@@ -239,39 +265,41 @@ export default function UserManagement() {
                   <td>
                     {editingUserId === user.id && canChangeRoles() ? (
                       <div className={styles.roleEdit}>
-                        <select
-                          value={selectedRole}
-                          onChange={(e) => setSelectedRole(e.target.value)}
-                        >
-                          <option value="">選擇角色</option>
-                          <option value={USER_ROLES.ADMIN}>管理員</option>
-                          <option value={USER_ROLES.FINANCE}>財務</option>
-                          <option value={USER_ROLES.LEADER}>主管</option>
-                          <option value={USER_ROLES.SALES}>業務</option>
-                        </select>
-                        <button 
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          {[USER_ROLES.SALES, USER_ROLES.PM, USER_ROLES.LEADER, USER_ROLES.FINANCE, USER_ROLES.ADMIN].map(role => (
+                            <label key={role} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedRoles.includes(role)}
+                                onChange={() => toggleRole(role, selectedRoles, setSelectedRoles)}
+                              />
+                              {ROLE_NAMES[role]}
+                            </label>
+                          ))}
+                        </div>
+                        <button
                           className={styles.saveButton}
-                          onClick={() => handleRoleUpdate(user.id, selectedRole)}
-                          disabled={!selectedRole}
+                          onClick={() => handleRoleUpdate(user.id, selectedRoles[0], selectedRoles)}
+                          disabled={selectedRoles.length === 0}
                         >
                           保存
                         </button>
-                        <button 
+                        <button
                           className={styles.cancelButton}
                           onClick={() => {
                             setEditingUserId(null);
-                            setSelectedRole('');
+                            setSelectedRoles([]);
                           }}
                         >
                           取消
                         </button>
                       </div>
                     ) : (
-                      <span 
+                      <span
                         className={styles.roleBadge}
                         data-role={user.role}
                       >
-                        {getRoleDisplayName(user.role)}
+                        {getRolesDisplayName(user.roles, user.role)}
                       </span>
                     )}
                   </td>
@@ -298,7 +326,9 @@ export default function UserManagement() {
                           className={styles.roleButton}
                           onClick={() => {
                             setEditingUserId(user.id);
-                            setSelectedRole(user.role);
+                            // 使用 roles 陣列或 fallback 到 role
+                            const userRoles = user.roles && user.roles.length > 0 ? user.roles : (user.role ? [user.role] : ['sales']);
+                            setSelectedRoles(userRoles);
                           }}
                         >
                           改角色
@@ -357,21 +387,63 @@ export default function UserManagement() {
                   </div>
                   
                   <div className={styles.formGroup}>
-                    <label>角色 *</label>
-                    <select
-                      value={newUserForm.role}
-                      onChange={(e) => setNewUserForm({...newUserForm, role: e.target.value})}
-                      required
-                    >
-                      <option value={USER_ROLES.SALES}>業務</option>
-                      <option value={USER_ROLES.LEADER}>主管</option>
+                    <label>角色 * (可多選)</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', padding: '0.5rem 0' }}>
+                      {[USER_ROLES.SALES, USER_ROLES.PM, USER_ROLES.LEADER].map(role => (
+                        <label key={role} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={newUserForm.roles.includes(role)}
+                            onChange={() => {
+                              const newRoles = newUserForm.roles.includes(role)
+                                ? newUserForm.roles.filter(r => r !== role)
+                                : [...newUserForm.roles, role];
+                              // 確保至少一個角色
+                              if (newRoles.length > 0) {
+                                setNewUserForm({...newUserForm, roles: newRoles, role: newRoles[0]});
+                              }
+                            }}
+                          />
+                          {ROLE_NAMES[role]}
+                        </label>
+                      ))}
                       {currentUser?.role === USER_ROLES.ADMIN && (
                         <>
-                          <option value={USER_ROLES.FINANCE}>財務</option>
-                          <option value={USER_ROLES.ADMIN}>管理員</option>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={newUserForm.roles.includes(USER_ROLES.FINANCE)}
+                              onChange={() => {
+                                const role = USER_ROLES.FINANCE;
+                                const newRoles = newUserForm.roles.includes(role)
+                                  ? newUserForm.roles.filter(r => r !== role)
+                                  : [...newUserForm.roles, role];
+                                if (newRoles.length > 0) {
+                                  setNewUserForm({...newUserForm, roles: newRoles, role: newRoles[0]});
+                                }
+                              }}
+                            />
+                            財務
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={newUserForm.roles.includes(USER_ROLES.ADMIN)}
+                              onChange={() => {
+                                const role = USER_ROLES.ADMIN;
+                                const newRoles = newUserForm.roles.includes(role)
+                                  ? newUserForm.roles.filter(r => r !== role)
+                                  : [...newUserForm.roles, role];
+                                if (newRoles.length > 0) {
+                                  setNewUserForm({...newUserForm, roles: newRoles, role: newRoles[0]});
+                                }
+                              }}
+                            />
+                            管理員
+                          </label>
                         </>
                       )}
-                    </select>
+                    </div>
                   </div>
                   
                   <div className={styles.formGroup}>

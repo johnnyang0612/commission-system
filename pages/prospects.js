@@ -2747,7 +2747,7 @@ export default function Prospects() {
                     >
                       <option value="">請選擇負責人</option>
                       {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.role === 'sales' ? '業務' : '主管'})</option>
+                        <option key={u.id} value={u.id}>{u.name} ({u.role === 'sales' ? '業務' : u.role === 'pm' ? 'PM' : '主管'})</option>
                       ))}
                     </select>
                   </div>

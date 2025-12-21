@@ -1,9 +1,10 @@
 // Permission utility functions
 export const USER_ROLES = {
   ADMIN: 'admin',
-  FINANCE: 'finance', 
+  FINANCE: 'finance',
   SALES: 'sales',
-  LEADER: 'leader'
+  LEADER: 'leader',
+  PM: 'pm'
 };
 
 export const PERMISSIONS = {
@@ -36,6 +37,9 @@ const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_ALL_PROJECTS,
     PERMISSIONS.MANAGE_USERS  // 主管可以管理用戶資料
   ],
+  [USER_ROLES.PM]: [
+    PERMISSIONS.VIEW_ALL_PROJECTS  // PM 可以看所有專案，但不能管理用戶或財務
+  ],
   [USER_ROLES.SALES]: [
     // Sales can only view their own projects and commissions
   ]
@@ -43,13 +47,18 @@ const ROLE_PERMISSIONS = {
 
 /**
  * Check if user has specific permission
- * @param {string} userRole - User's role
+ * @param {string|string[]} userRoles - User's role(s) - can be single role or array
  * @param {string} permission - Permission to check
  * @returns {boolean}
  */
-export function hasPermission(userRole, permission) {
-  if (!userRole || !permission) return false;
-  return ROLE_PERMISSIONS[userRole]?.includes(permission) || false;
+export function hasPermission(userRoles, permission) {
+  if (!userRoles || !permission) return false;
+
+  // 支援單一角色或角色陣列
+  const roles = Array.isArray(userRoles) ? userRoles : [userRoles];
+
+  // 檢查任一角色是否有此權限
+  return roles.some(role => ROLE_PERMISSIONS[role]?.includes(permission));
 }
 
 /**

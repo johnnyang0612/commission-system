@@ -185,14 +185,22 @@ export default function UserDetail() {
     );
   }
 
+  const ROLE_LABELS = {
+    'admin': '管理員',
+    'finance': '財務',
+    'leader': '主管',
+    'pm': 'PM',
+    'sales': '業務'
+  };
+
   const getRoleLabel = (role) => {
-    const labels = {
-      'admin': '管理員',
-      'finance': '財務',
-      'leader': '主管',
-      'sales': '業務'
-    };
-    return labels[role] || role;
+    return ROLE_LABELS[role] || role;
+  };
+
+  const getRolesLabel = (roles, role) => {
+    const userRoles = roles && roles.length > 0 ? roles : (role ? [role] : []);
+    if (userRoles.length === 0) return '-';
+    return userRoles.map(r => ROLE_LABELS[r] || r).join(' + ');
   };
 
   return (
@@ -275,18 +283,34 @@ export default function UserDetail() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-                  角色
+                  角色 (可多選)
                 </label>
-                <select
-                  value={editFormData.role || ''}
-                  onChange={(e) => setEditFormData({...editFormData, role: e.target.value})}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
-                >
-                  <option value="sales">業務</option>
-                  <option value="leader">主管</option>
-                  <option value="finance">財務</option>
-                  <option value="admin">管理員</option>
-                </select>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', padding: '0.5rem 0' }}>
+                  {[
+                    { value: 'sales', label: '業務' },
+                    { value: 'pm', label: 'PM' },
+                    { value: 'leader', label: '主管' },
+                    { value: 'finance', label: '財務' },
+                    { value: 'admin', label: '管理員' }
+                  ].map(r => (
+                    <label key={r.value} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={(editFormData.roles || [editFormData.role]).includes(r.value)}
+                        onChange={() => {
+                          const currentRoles = editFormData.roles || [editFormData.role] || [];
+                          const newRoles = currentRoles.includes(r.value)
+                            ? currentRoles.filter(x => x !== r.value)
+                            : [...currentRoles, r.value];
+                          if (newRoles.length > 0) {
+                            setEditFormData({...editFormData, roles: newRoles, role: newRoles[0]});
+                          }
+                        }}
+                      />
+                      {r.label}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -364,7 +388,7 @@ export default function UserDetail() {
               <p><strong>姓名：</strong>{user.name}</p>
               <p><strong>Email：</strong>{user.email}</p>
               <p><strong>電話：</strong>{user.phone || '-'}</p>
-              <p><strong>角色：</strong>{getRoleLabel(user.role)}</p>
+              <p><strong>角色：</strong>{getRolesLabel(user.roles, user.role)}</p>
             </div>
             
             <div>

@@ -172,11 +172,38 @@ async function handleLeaveEvent(groupId) {
 async function handleMessageEvent(event, groupId, userId) {
   const { message, timestamp, replyToken } = event;
 
+  // 處理設定指令
+  if (message.type === 'text' && (message.text.startsWith('/設定') || message.text.startsWith('/setup'))) {
+    try {
+      const { handleSetupCommand } = await import('./setupCommand.js');
+      const handled = await handleSetupCommand(message.text, groupId, replyToken);
+      if (handled) {
+        console.log('已處理設定指令');
+        // 仍然儲存訊息記錄，但不做其他處理
+      }
+    } catch (e) {
+      console.error('設定指令處理失敗:', e);
+    }
+  }
+
   // 取得發送者資訊
   const senderProfile = await getLineUserProfile(groupId, userId);
 
   // 判斷是客戶還是員工 (簡單判斷，可以之後優化)
   const senderType = await determineSenderType(userId, senderProfile);
+
+  // 追蹤群組成員（自動偵測 PO）
+  if (senderType === 'staff') {
+    try {
+      const { trackGroupMember } = await import('./trackMember.js');
+      const result = await trackGroupMember(groupId, userId, senderType);
+      if (result?.isNew && result?.isProjectOwner) {
+        console.log(`🎯 自動偵測 PO: ${result.user.name}`);
+      }
+    } catch (e) {
+      console.log('成員追蹤跳過:', e.message);
+    }
+  }
 
   // 基本訊息資料
   const messageData = {
