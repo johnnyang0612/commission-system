@@ -1,35 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../utils/supabaseClient';
+import { useSimpleAuth } from '../utils/simpleAuth';
 import { USER_ROLES } from '../utils/permissions';
 
 export default function Settings() {
   const router = useRouter();
+  const { user: authUser, loading: authLoading } = useSimpleAuth();
   const [activeTab, setActiveTab] = useState('users');
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [currentRole, setCurrentRole] = useState(null);
   const [users, setUsers] = useState([]);
   const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
-    checkAccess();
-  }, []);
+    if (!authLoading) {
+      checkAccess();
+    }
+  }, [authLoading, authUser]);
 
   async function checkAccess() {
-    // 從 simpleAuth 取得當前用戶
-    const storedUser = localStorage.getItem('currentUser');
-    if (!storedUser) {
+    if (!authUser) {
       router.push('/login');
       return;
     }
 
-    const userData = JSON.parse(storedUser);
-    setCurrentUser(userData);
-    setCurrentRole(userData.role);
-
     // admin 和 leader 都可以進入設定頁面
-    if (userData.role !== USER_ROLES.ADMIN && userData.role !== USER_ROLES.LEADER) {
+    if (authUser.role !== USER_ROLES.ADMIN && authUser.role !== USER_ROLES.LEADER) {
       router.push('/dashboard');
       return;
     }
@@ -38,7 +34,8 @@ export default function Settings() {
     setLoading(false);
   }
 
-  const isAdmin = currentRole === USER_ROLES.ADMIN;
+  const isAdmin = authUser?.role === USER_ROLES.ADMIN;
+  const isLeader = authUser?.role === USER_ROLES.LEADER;
 
   async function loadData() {
     await Promise.all([
@@ -209,7 +206,7 @@ export default function Settings() {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
         <div style={{ textAlign: 'center', color: '#64748b' }}>載入中...</div>
@@ -268,7 +265,7 @@ export default function Settings() {
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.id, e.target.value)}
                       style={styles.roleSelect}
-                      disabled={user.id === currentUser?.id}
+                      disabled={user.id === authUser?.id}
                     >
                       {Object.entries(ROLE_NAMES)
                         .filter(([value]) => isAdmin || value !== 'admin')
@@ -276,7 +273,7 @@ export default function Settings() {
                           <option key={value} value={value}>{label}</option>
                         ))}
                     </select>
-                    {user.id !== currentUser?.id && isAdmin && (
+                    {user.id !== authUser?.id && isAdmin && (
                       <button
                         onClick={() => handleDeleteUser(user.id)}
                         style={styles.deleteBtn}

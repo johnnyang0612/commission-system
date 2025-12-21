@@ -23,6 +23,9 @@ export default function Layout({ children }) {
     if (path === '/ai-generator') {
       return router.pathname === '/ai-generator' || router.pathname === '/knowledge-base';
     }
+    if (path === '/line-integration') {
+      return router.pathname === '/line-integration' || router.pathname === '/meetings';
+    }
     return router.pathname === path;
   };
 
@@ -55,11 +58,12 @@ export default function Layout({ children }) {
     return null;
   }
 
-  // 5 入口導航
+  // 6 入口導航
   const navItems = [
     { href: '/dashboard', label: '儀表板', icon: '📊' },
     { href: '/cases', label: '案件', icon: '📁' },
     { href: isFinance ? '/finance' : '/my-payouts', label: isFinance ? '財務' : '我的分潤', icon: '💰' },
+    { href: '/line-integration', label: 'LINE', icon: '💬' },
     { href: '/ai-generator', label: '工具', icon: '🤖' },
     ...(canManageUsers ? [{ href: '/settings', label: '設定', icon: '⚙️' }] : []),
   ];
