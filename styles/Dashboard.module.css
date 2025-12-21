@@ -82,7 +82,7 @@
 
 .chartsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr));
   gap: 20px;
   margin-bottom: 30px;
 }
@@ -348,24 +348,161 @@
 }
 
 @media (max-width: 768px) {
+  .dashboard {
+    padding: 0;
+  }
+
+  .pageHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+  }
+
+  .pageHeader h2 {
+    font-size: 20px;
+  }
+
+  .welcome {
+    font-size: 14px;
+  }
+
+  .exportButton {
+    width: 100%;
+    padding: 12px;
+    text-align: center;
+  }
+
   .statsGrid {
-    grid-template-columns: 1fr;
-  }
-  
-  .estimateGrid {
-    grid-template-columns: 1fr;
-  }
-  
-  .linkGrid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
-  
-  .overdueTable {
+
+  .statCard {
+    padding: 14px;
+    flex-direction: column;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .statIcon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .statLabel {
+    font-size: 11px;
+  }
+
+  .statValue {
+    font-size: 18px;
+  }
+
+  .chartCard {
+    padding: 16px;
+    border-radius: 8px;
+  }
+
+  .chartCard h3 {
+    font-size: 16px;
+    margin-bottom: 16px;
+  }
+
+  .actionsSection {
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .actionItem {
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+
+  .actionIcon {
+    font-size: 20px;
+  }
+
+  .actionTitle {
+    font-size: 14px;
+  }
+
+  .actionDesc {
     font-size: 12px;
   }
-  
+
+  .actionAmount {
+    width: 100%;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+    text-align: right;
+    font-size: 15px;
+  }
+
+  .estimateGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .estimateCard {
+    padding: 12px;
+  }
+
+  .estimateStage {
+    font-size: 12px;
+  }
+
+  .estimateAmount {
+    font-size: 16px;
+  }
+
+  .linkGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .linkCard {
+    padding: 20px 15px;
+  }
+
+  .linkIcon {
+    font-size: 28px;
+  }
+
+  .overdueSection {
+    padding: 16px;
+  }
+
+  .overdueTable {
+    font-size: 12px;
+    display: block;
+    overflow-x: auto;
+  }
+
   .overdueTable th,
   .overdueTable td {
     padding: 8px;
+    white-space: nowrap;
+  }
+
+  .revenueEstimate {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .estimateGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statCard {
+    flex-direction: row;
+    text-align: left;
   }
 }
