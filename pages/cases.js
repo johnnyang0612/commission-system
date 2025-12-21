@@ -388,9 +388,30 @@ export default function Cases() {
       {/* 頁面標題 */}
       <div style={styles.header}>
         <h1 style={styles.title}>案件管理</h1>
-        <button onClick={() => setShowModal(true)} style={styles.addBtn}>
-          + 新增案件
-        </button>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => router.push('/ai-generator?tab=smart-project')}
+            style={{
+              padding: '12px 20px',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 10,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: '0 2px 8px rgba(139,92,246,0.3)'
+            }}
+          >
+            🚀 智能建案
+          </button>
+          <button onClick={() => setShowModal(true)} style={styles.addBtn}>
+            + 新增案件
+          </button>
+        </div>
       </div>
 
       {/* 統計卡片 */}
