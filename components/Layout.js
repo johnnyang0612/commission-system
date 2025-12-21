@@ -132,33 +132,35 @@ export default function Layout({ children }) {
               marginLeft: 16,
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              gap: 8,
               paddingLeft: 16,
               borderLeft: '1px solid rgba(255,255,255,0.2)'
             }}>
+              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                {user?.name || user?.email?.split('@')[0]}
+              </span>
               <Link
                 href="/profile"
                 style={{
-                  color: 'rgba(255,255,255,0.9)',
-                  fontSize: 14,
+                  color: 'white',
+                  fontSize: 13,
                   textDecoration: 'none',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 10px',
+                  gap: 4,
+                  padding: '6px 12px',
                   borderRadius: 6,
-                  transition: 'all 0.2s',
-                  background: 'rgba(255,255,255,0.1)'
+                  background: 'rgba(59, 130, 246, 0.8)',
+                  fontWeight: 500
                 }}
-                title="個人資料設定"
               >
-                <span style={{ fontSize: 16 }}>👤</span>
-                {user?.name || user?.email?.split('@')[0]}
+                <span style={{ fontSize: 14 }}>⚙️</span>
+                個人設定
               </Link>
               <button
                 onClick={handleLogout}
                 style={{
-                  padding: '8px 14px',
+                  padding: '6px 12px',
                   background: 'rgba(239,68,68,0.9)',
                   color: 'white',
                   border: 'none',
