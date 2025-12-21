@@ -21,15 +21,14 @@ export default function Payments() {
     const role = getCurrentUserRole();
     setCurrentUser(user);
     setUserRole(role);
-    
+
     fetchPayments();
     fetchProjects();
   }, []);
 
   async function fetchPayments() {
     if (!supabase) return;
-    
-    // 從 project_installments 獲取實際的付款記錄
+
     const { data: installmentData, error: installmentError } = await supabase
       .from('project_installments')
       .select(`
@@ -47,35 +46,33 @@ export default function Payments() {
       .not('actual_amount', 'is', null)
       .gt('actual_amount', 0)
       .order('payment_date', { ascending: false });
-    
+
     if (installmentError) {
       console.error('獲取付款記錄失敗:', installmentError);
       return;
     }
-    
-    // 將 installment 資料轉換成 payment 格式
+
     const paymentRecords = installmentData?.map(installment => ({
       id: installment.id,
       project_id: installment.project_id,
       payment_date: installment.payment_date,
       amount: installment.actual_amount || installment.amount,
-      method: 'transfer', // 預設轉帳，可以後續加入付款方式欄位
+      method: 'transfer',
       description: `第 ${installment.installment_number} 期付款`,
       project: installment.project
     })) || [];
-    
+
     setPayments(paymentRecords);
   }
 
   async function fetchProjects() {
     if (!supabase) return;
-    
-    // 使用新的 payment_commission_summary 視圖，包含收款和撥款統計
+
     const { data, error } = await supabase
       .from('payment_commission_summary')
       .select('*')
       .order('project_code', { ascending: false });
-    
+
     if (error) console.error('獲取專案統計失敗:', error);
     else setProjects(data || []);
   }
@@ -83,14 +80,14 @@ export default function Payments() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!supabase) return;
-    
+
     const { error } = await supabase
       .from('payments')
       .insert([{
         ...formData,
         amount: parseFloat(formData.amount)
       }]);
-    
+
     if (error) {
       console.error(error);
       alert('新增失敗');
@@ -104,78 +101,40 @@ export default function Payments() {
         method: 'transfer'
       });
       fetchPayments();
-      
-      // 自動執行分潤撥款（按收款比例）
+
       const autoPayoutResult = await autoPayoutCommissions(
-        formData.project_id, 
+        formData.project_id,
         parseFloat(formData.amount),
-        // 這裡應該是新插入的付款記錄ID，暫時用null
         null
       );
-      
+
       if (autoPayoutResult.success && autoPayoutResult.payoutsProcessed > 0) {
         alert(`收款登錄成功！\n\n已自動撥款 ${autoPayoutResult.payoutsProcessed} 筆分潤，並產生對應勞務報酬單。`);
       }
-      
+
       await syncWithProjectInstallments(formData.project_id, parseFloat(formData.amount));
     }
   }
 
-  async function checkAndTriggerCommissionPayout(projectId) {
-    if (!supabase) return;
-    
-    const project = projects.find(p => p.id === projectId);
-    if (!project) return;
-    
-    const projectPayments = payments.filter(p => p.project_id === projectId);
-    const newPayment = parseFloat(formData.amount);
-    const totalPaid = projectPayments.reduce((sum, p) => sum + p.amount, 0) + newPayment;
-    
-    const paymentRatio = totalPaid / project.amount;
-    
-    if (paymentRatio >= 0.6) {
-      const { data: commissions } = await supabase
-        .from('commissions')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('status', 'pending');
-      
-      if (commissions && commissions.length > 0) {
-        const { error } = await supabase
-          .from('commissions')
-          .update({ status: 'approved' })
-          .eq('project_id', projectId)
-          .eq('status', 'pending');
-        
-        if (!error) {
-          alert('已達到撥款條件，相關分潤已核准！');
-        }
-      }
-    }
-  }
-  
   async function syncWithProjectInstallments(projectId, paymentAmount) {
     if (!supabase) return;
-    
-    // Get project installments that haven't been marked as paid
+
     const { data: installments, error: installmentError } = await supabase
       .from('project_installments')
       .select('*')
       .eq('project_id', projectId)
       .eq('status', 'unpaid')
       .order('installment_number', { ascending: true });
-    
+
     if (installmentError || !installments || installments.length === 0) return;
-    
+
     let remainingAmount = paymentAmount;
     const installmentUpdates = [];
-    
-    // Mark installments as paid based on the payment amount
+
     for (const installment of installments) {
       if (remainingAmount <= 0) break;
-      
+
       if (remainingAmount >= installment.amount) {
-        // Full payment for this installment
         installmentUpdates.push({
           id: installment.id,
           status: 'paid',
@@ -183,13 +142,10 @@ export default function Payments() {
         });
         remainingAmount -= installment.amount;
       } else {
-        // Partial payment - we'll mark it as partial for now
-        // In a more complex system, you might want to split installments
         break;
       }
     }
-    
-    // Update the installments
+
     for (const update of installmentUpdates) {
       await supabase
         .from('project_installments')
@@ -199,255 +155,203 @@ export default function Payments() {
   }
 
   const getMethodLabel = (method) => {
-    const labels = {
-      'transfer': '轉帳',
-      'check': '支票',
-      'cash': '現金',
-      'credit': '信用卡'
-    };
+    const labels = { 'transfer': '轉帳', 'check': '支票', 'cash': '現金', 'credit': '信用卡' };
     return labels[method] || method;
   };
 
-  const calculatePaymentProgress = (project) => {
-    // 使用 payment_commission_summary 視圖的統計數據
-    return {
-      totalPaid: project.total_received || 0,
-      percentage: project.payment_percentage || 0,
-      totalCommissionPaid: project.total_commission_paid || 0,
-      commissionPercentage: project.commission_percentage || 0,
-      receivedInstallments: project.received_installments || 0,
-      commissionInstallments: project.commission_installments || 0
-    };
+  const calculatePaymentProgress = (project) => ({
+    totalPaid: project.total_received || 0,
+    percentage: project.payment_percentage || 0,
+    totalCommissionPaid: project.total_commission_paid || 0,
+    commissionPercentage: project.commission_percentage || 0,
+    receivedInstallments: project.received_installments || 0,
+    commissionInstallments: project.commission_installments || 0
+  });
+
+  const styles = {
+    page: { padding: 20, maxWidth: 1200, margin: '0 auto' },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 },
+    title: { fontSize: 20, fontWeight: 600, margin: 0 },
+    headerBtn: { padding: '10px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer', fontSize: 14 },
+    section: { background: 'white', borderRadius: 12, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+    sectionTitle: { fontSize: 16, fontWeight: 600, marginBottom: 12 },
+    form: { background: '#f8fafc', borderRadius: 12, padding: 16, marginBottom: 16 },
+    formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 },
+    formGroup: { marginBottom: 12 },
+    label: { display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 },
+    input: { width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' },
+    submitBtn: { marginTop: 8, padding: '12px 24px', background: '#10b981', color: 'white', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer', fontSize: 14 },
+    progressGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 16 },
+    progressCard: { background: 'white', borderRadius: 12, padding: 14, border: '1px solid #f1f5f9' },
+    progressHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+    progressCode: { fontSize: 14, fontWeight: 600, color: '#1e293b' },
+    progressClient: { fontSize: 13, color: '#64748b' },
+    progressPercent: { fontSize: 14, fontWeight: 600, color: '#2563eb' },
+    progressBar: { height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden', marginBottom: 6 },
+    progressFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s' },
+    progressAmount: { fontSize: 12, color: '#64748b', textAlign: 'right' },
+    card: { background: 'white', borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' },
+    cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, gap: 8 },
+    paymentDate: { fontSize: 12, color: '#64748b', background: '#f1f5f9', padding: '4px 8px', borderRadius: 4 },
+    projectCode: { fontSize: 14, fontWeight: 600, color: '#2563eb', cursor: 'pointer' },
+    clientName: { fontSize: 13, color: '#64748b', marginTop: 2 },
+    cardRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: 13 },
+    cardLabel: { color: '#64748b' },
+    cardValue: { fontWeight: 500, color: '#1e293b' },
+    amount: { fontSize: 18, fontWeight: 700, color: '#10b981' },
+    badge: { display: 'inline-flex', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, background: 'rgba(37,99,235,0.1)', color: '#2563eb' },
+    empty: { textAlign: 'center', padding: 40, color: '#94a3b8' }
   };
 
   return (
-      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2 style={{ margin: 0 }}>付款記錄管理</h2>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: '#3498db',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
-          >
-            {showAddForm ? '取消' : '登錄收款'}
-          </button>
-        </div>
+    <div style={styles.page}>
+      {/* 頁面標題 */}
+      <div style={styles.header}>
+        <h1 style={styles.title}>付款記錄</h1>
+        <button onClick={() => setShowAddForm(!showAddForm)} style={styles.headerBtn}>
+          {showAddForm ? '取消' : '登錄收款'}
+        </button>
+      </div>
 
-        {showAddForm && (
-          <form onSubmit={handleSubmit} style={{
-            backgroundColor: '#f8f9fa',
-            padding: '1.5rem',
-            borderRadius: '8px',
-            marginBottom: '2rem'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-                  專案
-                </label>
-                <select
-                  value={formData.project_id}
-                  onChange={(e) => setFormData({...formData, project_id: e.target.value})}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                >
-                  <option value="">選擇專案</option>
-                  {projects.map(project => {
-                    const progress = calculatePaymentProgress(project);
-                    return (
-                      <option key={project.id} value={project.id}>
-                        {project.project_code} - {project.client_name} 
-                        (已收 {progress.percentage}% / NT$ {progress.totalPaid.toLocaleString()})
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-                  付款日期
-                </label>
-                <input
-                  type="date"
-                  value={formData.payment_date}
-                  onChange={(e) => setFormData({...formData, payment_date: e.target.value})}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-                  金額
-                </label>
-                <input
-                  type="number"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-                  付款方式
-                </label>
-                <select
-                  value={formData.method}
-                  onChange={(e) => setFormData({...formData, method: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px'
-                  }}
-                >
-                  <option value="transfer">轉帳</option>
-                  <option value="check">支票</option>
-                  <option value="cash">現金</option>
-                  <option value="credit">信用卡</option>
-                </select>
-              </div>
+      {/* 新增收款表單 */}
+      {showAddForm && (
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <div style={styles.formGrid}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>專案</label>
+              <select
+                value={formData.project_id}
+                onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+                required
+                style={styles.input}
+              >
+                <option value="">選擇專案...</option>
+                {projects.map(project => {
+                  const progress = calculatePaymentProgress(project);
+                  return (
+                    <option key={project.id} value={project.id}>
+                      {project.project_code} - {project.client_name} (已收 {progress.percentage}%)
+                    </option>
+                  );
+                })}
+              </select>
             </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>付款日期</label>
+              <input
+                type="date"
+                value={formData.payment_date}
+                onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
+                required
+                style={styles.input}
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>金額</label>
+              <input
+                type="number"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                required
+                placeholder="請輸入金額"
+                style={styles.input}
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>付款方式</label>
+              <select
+                value={formData.method}
+                onChange={(e) => setFormData({ ...formData, method: e.target.value })}
+                style={styles.input}
+              >
+                <option value="transfer">轉帳</option>
+                <option value="check">支票</option>
+                <option value="cash">現金</option>
+                <option value="credit">信用卡</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" style={styles.submitBtn}>確認登錄</button>
+        </form>
+      )}
 
-            <button
-              type="submit"
-              style={{
-                marginTop: '1rem',
-                padding: '0.75rem 2rem',
-                backgroundColor: '#27ae60',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              確認登錄
-            </button>
-          </form>
-        )}
-
-        <div style={{ marginBottom: '2rem' }}>
-          <h3>專案收款進度</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+      {/* 專案收款進度 */}
+      {projects.length > 0 && (
+        <div style={styles.section}>
+          <div style={styles.sectionTitle}>專案收款進度</div>
+          <div style={styles.progressGrid}>
             {projects.slice(0, 6).map(project => {
               const progress = calculatePaymentProgress(project);
               return (
-                <div key={project.id} style={{
-                  backgroundColor: '#f8f9fa',
-                  padding: '1rem',
-                  borderRadius: '8px',
-                  border: '1px solid #dee2e6'
-                }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    {project.project_code}
-                  </div>
-                  <div style={{ fontSize: '0.9rem', color: '#6c757d', marginBottom: '0.5rem' }}>
-                    {project.client_name}
-                  </div>
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <div style={{
-                      backgroundColor: '#e9ecef',
-                      borderRadius: '4px',
-                      overflow: 'hidden',
-                      height: '20px'
-                    }}>
-                      <div style={{
-                        backgroundColor: progress.percentage >= 100 ? '#27ae60' : '#3498db',
-                        width: `${Math.min(progress.percentage, 100)}%`,
-                        height: '100%',
-                        transition: 'width 0.3s ease'
-                      }} />
+                <div key={project.id} style={styles.progressCard}>
+                  <div style={styles.progressHeader}>
+                    <div>
+                      <div style={styles.progressCode}>{project.project_code}</div>
+                      <div style={styles.progressClient}>{project.client_name}</div>
                     </div>
+                    <div style={styles.progressPercent}>{progress.percentage}%</div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                    <span>{progress.percentage}%</span>
-                    <span>NT$ {progress.totalPaid.toLocaleString()} / {project.project_amount?.toLocaleString()}</span>
+                  <div style={styles.progressBar}>
+                    <div style={{
+                      ...styles.progressFill,
+                      width: `${Math.min(progress.percentage, 100)}%`,
+                      background: progress.percentage >= 100 ? '#10b981' : '#2563eb'
+                    }} />
+                  </div>
+                  <div style={styles.progressAmount}>
+                    NT$ {progress.totalPaid.toLocaleString()} / {project.project_amount?.toLocaleString()}
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
+      )}
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>付款日期</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>專案編號</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>客戶名稱</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>付款金額</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>付款方式</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>專案總額</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>付款模板</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map(payment => (
-                <tr key={payment.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                  <td style={{ padding: '1rem' }}>
-                    {new Date(payment.payment_date).toLocaleDateString('zh-TW')}
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <a 
-                      href={`/projects/${payment.project_id}`}
-                      style={{ 
-                        color: '#3498db', 
-                        textDecoration: 'none',
-                        fontWeight: 'bold' 
-                      }}
-                      onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
-                      onMouseOut={(e) => e.target.style.textDecoration = 'none'}
-                    >
-                      {payment.project?.project_code}
-                    </a>
-                  </td>
-                  <td style={{ padding: '1rem' }}>{payment.project?.client_name}</td>
-                  <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 'bold', color: '#27ae60' }}>
-                    NT$ {payment.amount?.toLocaleString()}
-                  </td>
-                  <td style={{ padding: '1rem' }}>{getMethodLabel(payment.method)}</td>
-                  <td style={{ padding: '1rem', textAlign: 'right' }}>
-                    NT$ {payment.project?.amount?.toLocaleString()}
-                  </td>
-                  <td style={{ padding: '1rem' }}>{payment.project?.payment_template}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {payments.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#6c757d' }}>
-              暫無付款記錄
-            </div>
-          )}
+      {/* 付款記錄列表（卡片式） */}
+      {payments.length === 0 ? (
+        <div style={{ ...styles.section, ...styles.empty }}>
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>💳</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>尚無付款記錄</div>
+          <div style={{ fontSize: 14, marginTop: 8 }}>點擊上方按鈕登錄收款</div>
         </div>
-      </div>
+      ) : (
+        payments.map(payment => (
+          <div key={payment.id} style={styles.card}>
+            <div style={styles.cardHeader}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={styles.projectCode}
+                  onClick={() => window.location.href = `/projects/${payment.project_id}`}
+                >
+                  {payment.project?.project_code}
+                </div>
+                <div style={styles.clientName}>{payment.project?.client_name}</div>
+              </div>
+              <span style={styles.paymentDate}>
+                {new Date(payment.payment_date).toLocaleDateString('zh-TW')}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>付款金額</div>
+                <div style={styles.amount}>NT$ {payment.amount?.toLocaleString()}</div>
+              </div>
+              <span style={styles.badge}>{getMethodLabel(payment.method)}</span>
+            </div>
+
+            <div style={{ ...styles.cardRow, borderBottom: 'none' }}>
+              <span style={styles.cardLabel}>專案總額</span>
+              <span style={styles.cardValue}>NT$ {payment.project?.amount?.toLocaleString()}</span>
+            </div>
+            <div style={{ ...styles.cardRow, borderBottom: 'none' }}>
+              <span style={styles.cardLabel}>付款模板</span>
+              <span style={styles.cardValue}>{payment.project?.payment_template}</span>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
   );
 }

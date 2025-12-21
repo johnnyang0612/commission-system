@@ -10,13 +10,15 @@ export default function Commissions() {
   const [monthlyStats, setMonthlyStats] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [showRules, setShowRules] = useState(false);
+  const [selectedProject, setSelectedProject] = useState('');
 
   useEffect(() => {
     const user = getCurrentUser();
     const role = getCurrentUserRole();
     setCurrentUser(user);
     setUserRole(role);
-    
+
     fetchCommissions();
     fetchProjects();
     calculateMonthlyStats();
@@ -24,8 +26,7 @@ export default function Commissions() {
 
   async function fetchCommissions() {
     if (!supabase) return;
-    
-    // 直接從 project_installments 獲取撥款資料，配合專案資訊
+
     const { data: installmentData, error: installmentError } = await supabase
       .from('project_installments')
       .select(`
@@ -45,15 +46,14 @@ export default function Commissions() {
       `)
       .not('actual_commission', 'is', null)
       .gt('actual_commission', 0);
-    
+
     if (installmentError) {
       console.error('獲取撥款資料失敗:', installmentError);
       return;
     }
-    
-    // 將 installment 資料轉換成分潤格式，以專案分組統計
+
     const commissionsByProject = {};
-    
+
     installmentData?.forEach(installment => {
       const projectId = installment.project_id;
       if (!commissionsByProject[projectId]) {
@@ -66,7 +66,7 @@ export default function Commissions() {
         } else {
           commissionRate = 35;
         }
-        
+
         commissionsByProject[projectId] = {
           id: projectId,
           project_id: projectId,
@@ -83,8 +83,7 @@ export default function Commissions() {
           payouts: []
         };
       }
-      
-      // 累加已撥款金額
+
       commissionsByProject[projectId].total_paid_amount += parseFloat(installment.actual_commission || 0);
       commissionsByProject[projectId].payout_count += 1;
       commissionsByProject[projectId].payouts.push({
@@ -93,51 +92,47 @@ export default function Commissions() {
         installment_number: installment.installment_number
       });
     });
-    
-    // 計算剩餘金額和撥款百分比
+
     Object.values(commissionsByProject).forEach(commission => {
       commission.remaining_amount = commission.amount - commission.total_paid_amount;
-      commission.paid_percentage = commission.amount > 0 ? 
+      commission.paid_percentage = commission.amount > 0 ?
         (commission.total_paid_amount / commission.amount * 100) : 0;
     });
-    
+
     setCommissions(Object.values(commissionsByProject));
   }
 
   async function fetchProjects() {
     if (!supabase) return;
-    
+
     let query = supabase.from('projects').select('*');
-    
-    // Apply role-based filtering for project selection
     const user = getCurrentUser();
     const role = getCurrentUserRole();
-    
-    // 暫時移除角色過濾，確保專案資料可以正常載入
+
     if (role === 'sales') {
       // query = query.eq('assigned_to', user.id);
     } else if (role === 'leader') {
       // query = query.or(`assigned_to.eq.${user.id},manager_id.eq.${user.id}`);
     }
-    
+
     const { data, error } = await query.order('created_at', { ascending: false });
-    
+
     if (error) console.error(error);
     else setProjects(data || []);
   }
 
   async function calculateMonthlyStats() {
     if (!supabase) return;
-    
+
     const currentMonth = new Date().getMonth() + 1;
     const currentYear = new Date().getFullYear();
-    
+
     const { data, error } = await supabase
       .from('commissions')
       .select('user_id, amount')
       .gte('created_at', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
       .lt('created_at', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
-    
+
     if (!error && data) {
       const stats = {};
       data.forEach(commission => {
@@ -151,16 +146,16 @@ export default function Commissions() {
   }
 
   async function calculateCommission(projectId) {
-    if (!supabase) return;
-    
+    if (!supabase || !projectId) return;
+
     const project = projects.find(p => p.id === projectId);
     if (!project) return;
-    
+
     const userId = project.assigned_to;
     const userMonthlyTotal = monthlyStats[userId] || 0;
-    
+
     let percentage = 0;
-    
+
     if (project.type === 'new') {
       if (userMonthlyTotal < 100000) percentage = 35;
       else if (userMonthlyTotal < 300000) percentage = 30;
@@ -172,9 +167,9 @@ export default function Commissions() {
     } else if (project.type === 'maintenance') {
       percentage = 0;
     }
-    
+
     const commissionAmount = (project.amount * percentage) / 100;
-    
+
     const { error } = await supabase
       .from('commissions')
       .insert([{
@@ -184,7 +179,7 @@ export default function Commissions() {
         amount: commissionAmount,
         status: 'pending'
       }]);
-    
+
     if (error) {
       console.error(error);
       alert('計算失敗');
@@ -193,68 +188,41 @@ export default function Commissions() {
       fetchCommissions();
       calculateMonthlyStats();
       await syncCommissionWithInstallments(projectId);
+      setSelectedProject('');
     }
   }
-  
+
   async function syncCommissionWithInstallments(projectId) {
     if (!supabase) return;
-    
-    // Check if any installments for this project have been paid
+
     const { data: paidInstallments, error: installmentError } = await supabase
       .from('project_installments')
       .select('*')
       .eq('project_id', projectId)
       .eq('status', 'paid');
-    
+
     if (installmentError || !paidInstallments || paidInstallments.length === 0) return;
-    
-    // Get the project to check payment ratio
+
     const project = projects.find(p => p.id === projectId);
     if (!project) return;
-    
-    // Calculate total paid amount from installments
+
     const totalPaid = paidInstallments.reduce((sum, installment) => sum + installment.amount, 0);
     const paymentRatio = totalPaid / project.amount;
-    
-    // If 60% or more has been paid, auto-approve commission
+
     if (paymentRatio >= 0.6) {
       const { error: updateError } = await supabase
         .from('commissions')
         .update({ status: 'approved' })
         .eq('project_id', projectId)
         .eq('status', 'pending');
-      
+
       if (!updateError) {
-        console.log('Commission auto-approved based on installment payments');
-        fetchCommissions(); // Refresh the commission list
+        fetchCommissions();
       }
     }
   }
 
-  const getStatusLabel = (status) => {
-    const labels = {
-      'pending': '待撥款',
-      'approved': '已核准',
-      'paid': '已撥款',
-      'fully_paid': '已全額撥款',
-      'cancelled': '已取消'
-    };
-    return labels[status] || status;
-  };
-
-  const getStatusColor = (status) => {
-    const colors = {
-      'pending': '#f39c12',
-      'approved': '#3498db',
-      'paid': '#27ae60',
-      'fully_paid': '#2ecc71',
-      'cancelled': '#e74c3c'
-    };
-    return colors[status] || '#95a5a6';
-  };
-
   async function handleCommissionPayout(commissionId) {
-    // 1. 先計算可撥款金額
     const commission = commissions.find(c => c.id === commissionId);
     if (!commission) {
       alert('找不到分潤記錄');
@@ -273,10 +241,9 @@ export default function Commissions() {
       return;
     }
 
-    // 2. 讓使用者輸入撥款金額
     const maxAmount = commissionInfo.availableCommissionAmount;
     const inputAmount = prompt(
-      `可撥款金額：NT$ ${maxAmount.toLocaleString()}\n\n請輸入要撥款的金額：`, 
+      `可撥款金額：NT$ ${maxAmount.toLocaleString()}\n\n請輸入要撥款的金額：`,
       maxAmount.toString()
     );
 
@@ -294,7 +261,6 @@ export default function Commissions() {
     if (!confirmed) return;
 
     try {
-      // 3. 執行撥款
       const result = await executeCommissionPayout(commissionId, payoutAmount, {
         payoutDate: new Date().toISOString().split('T')[0],
         notes: '手動撥款'
@@ -302,12 +268,12 @@ export default function Commissions() {
 
       if (result.success) {
         let message = `撥款成功！金額：NT$ ${payoutAmount.toLocaleString()}`;
-        
+
         if (result.laborReceiptResult?.success) {
           message += `\n\n已自動產生勞務報酬單：${result.laborReceiptResult.receiptNumber}`;
           message += `\n實發金額：NT$ ${result.laborReceiptResult.netAmount.toLocaleString()}`;
         }
-        
+
         alert(message);
         fetchCommissions();
       } else {
@@ -326,7 +292,7 @@ export default function Commissions() {
 
     try {
       const result = await generatePendingLaborReceipts();
-      
+
       if (result.success) {
         alert(`批量產生完成！\n\n處理數量：${result.totalProcessed}\n成功：${result.successCount}\n失敗：${result.failCount}`);
         fetchCommissions();
@@ -339,230 +305,181 @@ export default function Commissions() {
     }
   }
 
+  const getPayoutStatus = (commission) => {
+    if (commission.total_paid_amount >= commission.amount) {
+      return { label: '已全額撥款', color: '#10b981', bg: 'rgba(16,185,129,0.1)', icon: '✅' };
+    } else if (commission.total_paid_amount > 0) {
+      return { label: '部分撥款', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', icon: '🔄' };
+    }
+    return { label: '等待撥款', color: '#64748b', bg: 'rgba(100,116,139,0.1)', icon: '⏳' };
+  };
+
+  const availableProjects = projects.filter(p => !commissions.find(c => c.project_id === p.id));
+
+  const styles = {
+    page: { padding: 20, maxWidth: 1200, margin: '0 auto' },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 },
+    title: { fontSize: 20, fontWeight: 600, margin: 0 },
+    headerBtn: { padding: '10px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer', fontSize: 14 },
+    section: { background: 'white', borderRadius: 12, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+    sectionTitle: { fontSize: 16, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+    calcRow: { display: 'flex', gap: 12, flexWrap: 'wrap' },
+    select: { flex: 1, minWidth: 200, padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14 },
+    calcBtn: { padding: '10px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' },
+    rulesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 },
+    ruleCard: { padding: 12, borderRadius: 8, fontSize: 13 },
+    card: { background: 'white', borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', border: '1px solid #f1f5f9' },
+    cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 8 },
+    projectCode: { fontSize: 14, fontWeight: 600, color: '#2563eb', cursor: 'pointer' },
+    clientName: { fontSize: 13, color: '#64748b' },
+    badge: { padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' },
+    statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 12 },
+    stat: { textAlign: 'center', padding: 12, background: '#f8fafc', borderRadius: 8 },
+    statLabel: { fontSize: 12, color: '#64748b', marginBottom: 4 },
+    statValue: { fontSize: 16, fontWeight: 600 },
+    progress: { marginBottom: 12 },
+    progressBar: { height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
+    progressFill: { height: '100%', borderRadius: 4, transition: 'width 0.3s' },
+    progressText: { fontSize: 12, color: '#64748b', textAlign: 'center' },
+    cardActions: { display: 'flex', gap: 8 },
+    actionBtn: { flex: 1, padding: '10px 12px', border: 'none', borderRadius: 8, fontWeight: 500, cursor: 'pointer', fontSize: 13 },
+    empty: { textAlign: 'center', padding: 40, color: '#94a3b8' },
+    toggleBtn: { background: 'none', border: 'none', color: '#2563eb', fontSize: 13, cursor: 'pointer' }
+  };
+
   return (
-      <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2 style={{ margin: 0 }}>分潤管理</h2>
-          <button
-            onClick={batchGenerateLaborReceipts}
-            style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: '#9b59b6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
+    <div style={styles.page}>
+      {/* 頁面標題 */}
+      <div style={styles.header}>
+        <h1 style={styles.title}>分潤管理</h1>
+        <button onClick={batchGenerateLaborReceipts} style={styles.headerBtn}>
+          批量產生勞報單
+        </button>
+      </div>
+
+      {/* 快速計算分潤 */}
+      <div style={styles.section}>
+        <div style={styles.sectionTitle}>快速計算分潤</div>
+        <div style={styles.calcRow}>
+          <select
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+            style={styles.select}
           >
-            批量產生勞務報酬單
+            <option value="">選擇專案...</option>
+            {availableProjects.map(project => (
+              <option key={project.id} value={project.id}>
+                {project.project_code} - {project.client_name}
+              </option>
+            ))}
+          </select>
+          <button onClick={() => calculateCommission(selectedProject)} style={styles.calcBtn}>
+            計算分潤
           </button>
         </div>
-
-        <div style={{ backgroundColor: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
-          <h3>快速計算分潤</h3>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <select
-              id="projectSelect"
-              style={{
-                padding: '0.5rem',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                flex: 1
-              }}
-            >
-              <option value="">選擇專案</option>
-              {projects.filter(p => !commissions.find(c => c.project_id === p.id)).map(project => (
-                <option key={project.id} value={project.id}>
-                  {project.project_code} - {project.client_name} (NT$ {project.amount?.toLocaleString()})
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => {
-                const select = document.getElementById('projectSelect');
-                if (select.value) {
-                  calculateCommission(select.value);
-                }
-              }}
-              style={{
-                padding: '0.5rem 1.5rem',
-                backgroundColor: '#3498db',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              計算分潤
-            </button>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: '2rem' }}>
-          <h3>分潤計算規則</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-            <div style={{ backgroundColor: '#e8f5e9', padding: '1rem', borderRadius: '8px' }}>
-              <h4 style={{ color: '#27ae60', margin: '0 0 0.5rem 0' }}>新簽案件</h4>
-              <ul style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '0.9rem' }}>
-                <li>0 - 100K: 35%</li>
-                <li>100K - 300K: 30%</li>
-                <li>300K - 600K: 25%</li>
-                <li>600K - 1M: 20%</li>
-                <li>1M+: 10%</li>
-              </ul>
-            </div>
-            <div style={{ backgroundColor: '#e3f2fd', padding: '1rem', borderRadius: '8px' }}>
-              <h4 style={{ color: '#3498db', margin: '0 0 0.5rem 0' }}>續簽案件</h4>
-              <p style={{ margin: 0, fontSize: '0.9rem' }}>固定 15%<br/>不計入當月累計</p>
-            </div>
-            <div style={{ backgroundColor: '#f5f5f5', padding: '1rem', borderRadius: '8px' }}>
-              <h4 style={{ color: '#95a5a6', margin: '0 0 0.5rem 0' }}>維護費案件</h4>
-              <p style={{ margin: 0, fontSize: '0.9rem' }}>不分潤</p>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>專案編號</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>客戶名稱</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>業務員</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>專案金額</th>
-                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>分潤%</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>總分潤</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>已撥款</th>
-                <th style={{ padding: '1rem', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>待撥款</th>
-                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>撥款進度</th>
-                <th style={{ padding: '1rem', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>建立時間</th>
-                <th style={{ padding: '1rem', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {commissions.map(commission => (
-                <tr key={commission.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                  <td style={{ padding: '1rem' }}>
-                    <a 
-                      href={`/projects/${commission.project_id}`}
-                      style={{ 
-                        color: '#3498db', 
-                        textDecoration: 'none',
-                        fontWeight: 'bold' 
-                      }}
-                      onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
-                      onMouseOut={(e) => e.target.style.textDecoration = 'none'}
-                    >
-                      {commission.project?.project_code}
-                    </a>
-                  </td>
-                  <td style={{ padding: '1rem' }}>{commission.project?.client_name}</td>
-                  <td style={{ padding: '1rem' }}>{commission.user?.name}</td>
-                  <td style={{ padding: '1rem', textAlign: 'right' }}>
-                    NT$ {commission.project?.amount?.toLocaleString()}
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    {commission.percentage}%
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 'bold' }}>
-                    NT$ {commission.amount?.toLocaleString()}
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'right', color: '#27ae60', fontWeight: 'bold' }}>
-                    NT$ {(commission.total_paid_amount || 0).toLocaleString()}
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'right', color: '#e74c3c', fontWeight: 'bold' }}>
-                    NT$ {(commission.remaining_amount || 0).toLocaleString()}
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-                      <div style={{
-                        width: '60px',
-                        height: '8px',
-                        backgroundColor: '#e9ecef',
-                        borderRadius: '4px',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{
-                          width: `${Math.min(commission.paid_percentage || 0, 100)}%`,
-                          height: '100%',
-                          backgroundColor: ((commission.total_paid_amount || 0) >= (commission.amount || 0)) ? '#27ae60' : '#3498db',
-                          transition: 'width 0.3s ease'
-                        }} />
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: '#6c757d' }}>
-                        {(commission.paid_percentage || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    {new Date(commission.created_at).toLocaleDateString('zh-TW')}
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    <button
-                      onClick={() => window.open(`/projects/${commission.project_id}`, '_blank')}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        backgroundColor: '#3498db',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.85rem',
-                        whiteSpace: 'nowrap',
-                        marginRight: '0.5rem'
-                      }}
-                    >
-                      📋 查看專案
-                    </button>
-                    {commission.total_paid_amount >= commission.amount ? (
-                      <span style={{
-                        padding: '0.5rem 1rem',
-                        backgroundColor: '#f8f9fa',
-                        color: '#27ae60',
-                        border: '1px solid #27ae60',
-                        borderRadius: '4px',
-                        fontSize: '0.85rem',
-                        fontWeight: 'bold'
-                      }}>
-                        ✅ 已全額撥款
-                      </span>
-                    ) : commission.total_paid_amount > 0 ? (
-                      <span style={{
-                        padding: '0.5rem 1rem',
-                        backgroundColor: '#fff3cd',
-                        color: '#f39c12',
-                        border: '1px solid #f39c12',
-                        borderRadius: '4px',
-                        fontSize: '0.85rem',
-                        fontWeight: 'bold'
-                      }}>
-                        🔄 部分撥款
-                      </span>
-                    ) : (
-                      <span style={{
-                        padding: '0.5rem 1rem',
-                        backgroundColor: '#f8f9fa',
-                        color: '#6c757d',
-                        border: '1px solid #dee2e6',
-                        borderRadius: '4px',
-                        fontSize: '0.85rem'
-                      }}>
-                        ⏳ 等待撥款
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {commissions.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#6c757d' }}>
-              暫無分潤資料
-            </div>
-          )}
-        </div>
       </div>
+
+      {/* 分潤計算規則（可收合） */}
+      <div style={styles.section}>
+        <div style={styles.sectionTitle}>
+          <span>分潤計算規則</span>
+          <button onClick={() => setShowRules(!showRules)} style={styles.toggleBtn}>
+            {showRules ? '收合' : '展開'}
+          </button>
+        </div>
+        {showRules && (
+          <div style={styles.rulesGrid}>
+            <div style={{ ...styles.ruleCard, background: '#ecfdf5' }}>
+              <div style={{ fontWeight: 600, color: '#10b981', marginBottom: 8 }}>新簽案件</div>
+              <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.6 }}>
+                0-100K: 35%<br/>
+                100-300K: 30%<br/>
+                300-600K: 25%<br/>
+                600K-1M: 20%<br/>
+                1M+: 10%
+              </div>
+            </div>
+            <div style={{ ...styles.ruleCard, background: '#eff6ff' }}>
+              <div style={{ fontWeight: 600, color: '#2563eb', marginBottom: 8 }}>續簽案件</div>
+              <div style={{ fontSize: 12, color: '#374151' }}>固定 15%<br/>不計入當月累計</div>
+            </div>
+            <div style={{ ...styles.ruleCard, background: '#f8fafc' }}>
+              <div style={{ fontWeight: 600, color: '#64748b', marginBottom: 8 }}>維護費</div>
+              <div style={{ fontSize: 12, color: '#374151' }}>不分潤</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 分潤列表（卡片式） */}
+      {commissions.length === 0 ? (
+        <div style={{ ...styles.section, ...styles.empty }}>
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>💰</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>尚無分潤資料</div>
+          <div style={{ fontSize: 14, marginTop: 8 }}>選擇專案計算分潤開始</div>
+        </div>
+      ) : (
+        commissions.map(commission => {
+          const status = getPayoutStatus(commission);
+          return (
+            <div key={commission.id} style={styles.card}>
+              <div style={styles.cardHeader}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={styles.projectCode}
+                    onClick={() => window.location.href = `/projects/${commission.project_id}`}
+                  >
+                    {commission.project?.project_code}
+                  </div>
+                  <div style={styles.clientName}>{commission.project?.client_name}</div>
+                </div>
+                <span style={{ ...styles.badge, background: status.bg, color: status.color }}>
+                  {status.icon} {status.label}
+                </span>
+              </div>
+
+              <div style={styles.statsGrid}>
+                <div style={styles.stat}>
+                  <div style={styles.statLabel}>專案金額</div>
+                  <div style={styles.statValue}>NT$ {commission.project?.amount?.toLocaleString()}</div>
+                </div>
+                <div style={styles.stat}>
+                  <div style={styles.statLabel}>分潤 ({commission.percentage}%)</div>
+                  <div style={{ ...styles.statValue, color: '#2563eb' }}>NT$ {commission.amount?.toLocaleString()}</div>
+                </div>
+                <div style={styles.stat}>
+                  <div style={styles.statLabel}>已撥款</div>
+                  <div style={{ ...styles.statValue, color: '#10b981' }}>NT$ {(commission.total_paid_amount || 0).toLocaleString()}</div>
+                </div>
+                <div style={styles.stat}>
+                  <div style={styles.statLabel}>待撥款</div>
+                  <div style={{ ...styles.statValue, color: '#ef4444' }}>NT$ {(commission.remaining_amount || 0).toLocaleString()}</div>
+                </div>
+              </div>
+
+              <div style={styles.progress}>
+                <div style={styles.progressBar}>
+                  <div style={{
+                    ...styles.progressFill,
+                    width: `${Math.min(commission.paid_percentage || 0, 100)}%`,
+                    background: commission.paid_percentage >= 100 ? '#10b981' : '#2563eb'
+                  }} />
+                </div>
+                <div style={styles.progressText}>撥款進度 {(commission.paid_percentage || 0).toFixed(1)}%</div>
+              </div>
+
+              <div style={styles.cardActions}>
+                <button
+                  onClick={() => window.location.href = `/projects/${commission.project_id}`}
+                  style={{ ...styles.actionBtn, background: '#2563eb', color: 'white' }}
+                >
+                  查看專案
+                </button>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
   );
 }
