@@ -272,8 +272,8 @@ export default function Profile() {
     setBindingMessage(null);
 
     try {
-      console.log('開始 LINE 綁定，用戶 ID:', user.id);
-      const response = await fetch(`/api/messaging/bindUser?user_id=${user.id}`);
+      console.log('開始 LINE 綁定，用戶 ID:', user.id, 'Email:', user.email);
+      const response = await fetch(`/api/messaging/bindUser?user_id=${user.id}&email=${encodeURIComponent(user.email)}`);
       const data = await response.json();
 
       console.log('LINE 綁定 API 回應:', data);

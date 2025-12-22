@@ -21,19 +21,20 @@ export default async function handler(req, res) {
 
 // 產生 LINE Login 綁定連結
 function generateBindingLink(req, res) {
-  const { user_id } = req.query;
+  const { user_id, email } = req.query;
 
-  if (!user_id) {
-    return res.status(400).json({ error: '缺少 user_id' });
+  if (!user_id && !email) {
+    return res.status(400).json({ error: '缺少 user_id 或 email' });
   }
 
   if (!LINE_LOGIN_CHANNEL_ID) {
     return res.status(500).json({ error: '缺少 LINE_LOGIN_CHANNEL_ID' });
   }
 
-  // 產生 state (包含 user_id，用於 callback 時識別)
+  // 產生 state (包含 user_id 和 email，用於 callback 時識別)
   const state = Buffer.from(JSON.stringify({
     user_id,
+    email,
     timestamp: Date.now(),
     nonce: crypto.randomBytes(16).toString('hex')
   })).toString('base64');
