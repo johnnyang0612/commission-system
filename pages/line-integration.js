@@ -191,12 +191,17 @@ export default function LineIntegration() {
       });
 
       const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      setAiSummary(data);
+      if (data.error) {
+        throw new Error(data.hint ? `${data.error}\n${data.hint}` : data.error);
+      }
+
+      // API 返回的結構可能是 { success, analysis } 或直接返回分析結果
+      const analysisData = data.analysis || data;
+      setAiSummary(analysisData);
       setActiveTab('summary');
     } catch (error) {
       console.error('AI 摘要失敗:', error);
-      alert('AI 摘要失敗: ' + error.message);
+      alert('AI 摘要失敗:\n' + error.message);
     } finally {
       setSummaryLoading(false);
     }
@@ -425,7 +430,7 @@ export default function LineIntegration() {
 
                 {/* Tab 切換 */}
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                  {['messages', 'files', 'summary'].map(tab => (
+                  {['messages', 'members', 'files', 'summary'].map(tab => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -440,6 +445,7 @@ export default function LineIntegration() {
                       }}
                     >
                       {tab === 'messages' && `💬 訊息 (${messages.length})`}
+                      {tab === 'members' && `👥 成員 (${groupMembers.length})`}
                       {tab === 'files' && `📁 檔案 (${files.length})`}
                       {tab === 'summary' && '📊 AI 摘要'}
                     </button>
@@ -497,6 +503,99 @@ export default function LineIntegration() {
                       })}
                     </div>
                   )
+                )}
+
+                {activeTab === 'members' && (
+                  <div>
+                    {groupMembers.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: '#666', padding: '2rem' }}>
+                        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👥</div>
+                        <p>尚未偵測到成員</p>
+                        <p style={{ fontSize: '0.85rem', color: '#999' }}>當群組內有人發言時會自動偵測</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {/* 統計 */}
+                        <div style={{
+                          display: 'flex',
+                          gap: '1rem',
+                          padding: '0.75rem',
+                          backgroundColor: '#f0f9ff',
+                          borderRadius: '8px',
+                          marginBottom: '0.5rem'
+                        }}>
+                          <span>
+                            <strong>{groupMembers.filter(m => m.member_type === 'staff').length}</strong> 員工
+                          </span>
+                          <span>
+                            <strong>{groupMembers.filter(m => m.member_type === 'customer').length}</strong> 客戶
+                          </span>
+                          <span>
+                            <strong>{groupMembers.filter(m => m.is_project_owner).length}</strong> PO
+                          </span>
+                        </div>
+
+                        {/* 成員列表 */}
+                        {groupMembers.map(member => (
+                          <div key={member.id} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.75rem 1rem',
+                            backgroundColor: member.member_type === 'staff' ? '#dbeafe' : '#f3f4f6',
+                            borderRadius: '8px',
+                            borderLeft: member.is_project_owner ? '3px solid #f59e0b' : 'none'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: '50%',
+                                backgroundColor: member.member_type === 'staff' ? '#3b82f6' : '#10b981',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '1rem',
+                                fontWeight: '600'
+                              }}>
+                                {(member.display_name || member.users?.name || '?')[0]}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  {member.display_name || member.users?.name || '未知'}
+                                  {member.is_project_owner && (
+                                    <span style={{
+                                      fontSize: '0.7rem',
+                                      padding: '2px 6px',
+                                      backgroundColor: '#fef3c7',
+                                      color: '#92400e',
+                                      borderRadius: '10px'
+                                    }}>
+                                      ⭐ PO
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                  {member.member_type === 'staff' ? (
+                                    <>員工 · {member.users?.role || member.role || '未知角色'}</>
+                                  ) : (
+                                    <>客戶</>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#999', textAlign: 'right' }}>
+                              <div>發言 {member.message_count || 0} 次</div>
+                              {member.last_message_at && (
+                                <div>最後: {formatDate(member.last_message_at)}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {activeTab === 'files' && (

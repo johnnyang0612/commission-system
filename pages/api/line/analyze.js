@@ -32,7 +32,12 @@ export default async function handler(req, res) {
       .single();
 
     if (groupError || !group) {
-      return res.status(404).json({ error: '找不到群組' });
+      console.error('找不到群組:', group_id, groupError);
+      return res.status(404).json({
+        error: '找不到群組',
+        details: `群組 ID: ${group_id}`,
+        hint: '請確認 LINE Bot 已連接並有訊息紀錄'
+      });
     }
 
     // 取得最近的訊息
