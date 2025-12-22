@@ -2460,7 +2460,12 @@ export default function ProjectDetail() {
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>分潤金額 (稅前) *</label>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                  分潤金額 (稅前) *
+                  <span style={{ fontWeight: 'normal', fontSize: '0.8rem', color: '#6b7280', marginLeft: '0.5rem' }}>
+                    可自訂金額
+                  </span>
+                </label>
                 <input
                   type="number"
                   value={laborReceiptForm.gross_amount}
@@ -2470,6 +2475,7 @@ export default function ProjectDetail() {
                     calculateNetAmount(e.target.value, user);
                   }}
                   required
+                  placeholder="可分段給付，金額可自訂"
                   style={{ width: '100%', padding: '0.5rem', border: '1px solid #ddd', borderRadius: '4px' }}
                 />
               </div>
