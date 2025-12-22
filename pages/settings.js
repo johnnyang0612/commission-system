@@ -294,7 +294,38 @@ export default function Settings() {
               return (
                 <div key={user.id} style={styles.userCard}>
                   <div style={styles.userInfo}>
-                    <div style={styles.userName}>{user.name || '未設定姓名'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={styles.userName}>{user.name || '未設定姓名'}</span>
+                      {user.line_user_id ? (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 8px',
+                          background: '#dcfce7',
+                          color: '#16a34a',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 500
+                        }}>
+                          💬 LINE 已綁定
+                        </span>
+                      ) : (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 8px',
+                          background: '#f1f5f9',
+                          color: '#94a3b8',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 500
+                        }}>
+                          LINE 未綁定
+                        </span>
+                      )}
+                    </div>
                     <div style={styles.userEmail}>{user.email}</div>
                   </div>
                   <div style={styles.userActions}>
