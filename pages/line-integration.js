@@ -210,6 +210,7 @@ export default function LineIntegration() {
   function formatDate(dateString) {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleString('zh-TW', {
+      timeZone: 'Asia/Taipei',
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
