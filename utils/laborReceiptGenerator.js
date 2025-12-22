@@ -27,9 +27,14 @@ export async function generateLaborReceipt(commissionId, paymentData = {}) {
           id,
           name,
           email,
+          mobile_number,
           national_id,
           registered_address,
-          mailing_address
+          mailing_address,
+          bank_name,
+          bank_code,
+          account_number,
+          account_name
         )
       `)
       .eq('id', commissionId)
@@ -83,7 +88,12 @@ export async function generateLaborReceipt(commissionId, paymentData = {}) {
       recipient_name: commission.user?.name || '',
       recipient_id: commission.user?.national_id || '',
       recipient_address: commission.user?.registered_address || commission.user?.mailing_address || '',
-      
+      recipient_phone: commission.user?.mobile_number || '',
+      bank_name: commission.user?.bank_name || '',
+      bank_code: commission.user?.bank_code || '',
+      account_number: commission.user?.account_number || '',
+      account_name: commission.user?.account_name || '',
+
       status: 'issued', // 直接設為已開立
       issued_at: new Date().toISOString(),
       
@@ -199,7 +209,14 @@ export async function getLaborReceipts(filters = {}) {
         ),
         user:user_id (
           name,
-          email
+          email,
+          mobile_number,
+          national_id,
+          mailing_address,
+          bank_name,
+          bank_code,
+          account_number,
+          account_name
         ),
         commission:commission_id (
           percentage,

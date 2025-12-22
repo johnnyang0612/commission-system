@@ -300,7 +300,18 @@ export default function LaborReceipts() {
                 </td>
                 <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                   <button
-                    onClick={() => generateLaborReceiptPDF(receipt)}
+                    onClick={() => generateLaborReceiptPDF({
+                      ...receipt,
+                      // 從關聯的 user 帶入資料（如果勞報單本身沒有）
+                      recipient_name: receipt.recipient_name || receipt.user?.name,
+                      recipient_id: receipt.recipient_id || receipt.user?.national_id,
+                      recipient_address: receipt.recipient_address || receipt.user?.mailing_address,
+                      recipient_phone: receipt.recipient_phone || receipt.user?.mobile_number,
+                      bank_name: receipt.bank_name || receipt.user?.bank_name,
+                      bank_code: receipt.bank_code || receipt.user?.bank_code,
+                      account_number: receipt.account_number || receipt.user?.account_number,
+                      account_name: receipt.account_name || receipt.user?.account_name
+                    })}
                     style={{
                       padding: '0.4rem 0.8rem',
                       backgroundColor: '#3498db',
