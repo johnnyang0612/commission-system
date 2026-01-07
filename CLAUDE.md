@@ -341,6 +341,30 @@ search_similar_documents(
 
 即使 LINE 原始內容過期，系統仍保有完整備份。
 
+**支援的檔案類型**：
+- 圖片：JPG, PNG, GIF, WebP, BMP
+- 影片：MP4, MOV, AVI
+- 音訊：MP3, M4A, WAV
+- 文件：PDF, Word (DOC/DOCX), Excel (XLS/XLSX), PowerPoint (PPT/PPTX)
+- 壓縮檔：ZIP, RAR, 7Z, GZ
+- 其他：TXT, JSON, XML
+
+### 檔案儲存診斷與回溯
+
+| 頁面 | 路徑 | 功能 |
+|------|------|------|
+| Storage 診斷工具 | `/storage-check` | 檢查 Storage 設定、回溯下載遺漏檔案 |
+
+**功能說明**：
+- **診斷功能** - 自動檢查 Supabase Storage 設定是否正確
+- **回溯下載** - 補下載之前沒有成功儲存的檔案（LINE 檔案通常保留 7 天）
+- **詳細日誌** - Webhook 會輸出詳細的檔案下載日誌，方便除錯
+
+**Supabase Storage 設定要求**：
+1. 建立名為 `chat-files` 的 public bucket
+2. 設定 RLS 政策允許上傳檔案（建議允許 authenticated 用戶）
+3. 確保 bucket 為公開 (public) 以便產生公開 URL
+
 ### LINE 帳號綁定
 
 員工可在個人設定頁面 (`/profile`) 綁定 LINE 帳號：
@@ -352,13 +376,15 @@ search_similar_documents(
 
 | API | 功能 |
 |-----|------|
-| `/api/messaging/webhook` | LINE Webhook 接收訊息 |
+| `/api/messaging/webhook` | LINE Webhook 接收訊息（含檔案下載） |
 | `/api/messaging/bindUser` | 產生 LINE 綁定連結 |
 | `/api/messaging/bindCallback` | LINE Login 回調處理 |
 | `/api/messaging/setupCommand` | 群組設定指令 (`/設定`) |
 | `/api/messaging/trackMember` | 追蹤群組成員 |
 | `/api/messaging/detectMeeting` | AI 偵測會議時間 |
 | `/api/line/analyze` | AI 對話摘要分析 |
+| `/api/storage/check` | 檢查 Storage 設定 |
+| `/api/storage/backfill` | 回溯下載遺漏檔案 |
 
 ### 環境變數
 
@@ -464,7 +490,14 @@ LINE_LOGIN_CHANNEL_SECRET=xxx     # LINE Login
 
 ---
 
-## 最近更新 (2024-12)
+## 最近更新 (2025-01)
+
+1. **LINE 檔案儲存強化** - 支援所有檔案類型（圖片、影片、壓縮檔等）
+2. **檔案回溯功能** - 補下載之前遺漏的檔案
+3. **Storage 診斷工具** - 自動檢查 Supabase Storage 設定
+4. **詳細檔案日誌** - Webhook 輸出完整的檔案下載流程日誌
+
+### 過往更新 (2024-12)
 
 1. **智能建案** - 上傳提案書自動建立專案
 2. **LINE 成員顯示** - 群組詳情新增成員 Tab

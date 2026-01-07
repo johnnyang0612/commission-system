@@ -346,31 +346,42 @@ async function determineSenderType(userId, profile) {
 
 // 下載並儲存檔案
 async function downloadAndSaveFile(message, groupId) {
+  console.log(`📥 開始下載檔案: type=${message.type}, id=${message.id}, fileName=${message.fileName}`);
+
   if (!LINE_CHANNEL_ACCESS_TOKEN) {
-    console.warn('缺少 LINE_CHANNEL_ACCESS_TOKEN，無法下載檔案');
+    console.error('❌ 缺少 LINE_CHANNEL_ACCESS_TOKEN，無法下載檔案');
     return null;
   }
 
   try {
     // 從 LINE 下載檔案
-    const response = await fetch(`https://api-data.line.me/v2/bot/message/${message.id}/content`, {
+    const downloadUrl = `https://api-data.line.me/v2/bot/message/${message.id}/content`;
+    console.log(`🌐 下載 URL: ${downloadUrl}`);
+
+    const response = await fetch(downloadUrl, {
       headers: {
         'Authorization': `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
       }
     });
 
     if (!response.ok) {
-      console.error('下載檔案失敗:', response.status);
+      console.error(`❌ LINE API 下載失敗: HTTP ${response.status} ${response.statusText}`);
       return null;
     }
 
     const contentType = response.headers.get('content-type');
+    const contentLength = response.headers.get('content-length');
+    console.log(`📦 收到檔案: type=${contentType}, size=${contentLength} bytes`);
+
     const buffer = await response.arrayBuffer();
+    console.log(`💾 已讀取檔案到記憶體: ${buffer.byteLength} bytes`);
 
     // 產生檔案名稱
     const ext = getExtensionFromMimeType(contentType, message.type);
     const fileName = message.fileName || `${message.type}_${message.id}${ext}`;
     const storagePath = `chat/${groupId}/${Date.now()}_${fileName}`;
+
+    console.log(`📂 準備上傳到 Storage: path=${storagePath}`);
 
     // 上傳到 Supabase Storage
     const { data, error } = await supabase.storage
@@ -381,25 +392,40 @@ async function downloadAndSaveFile(message, groupId) {
       });
 
     if (error) {
-      console.error('上傳到 Storage 失敗:', error);
+      console.error('❌ 上傳到 Supabase Storage 失敗:', {
+        error: error.message,
+        code: error.statusCode,
+        hint: error.hint,
+        details: error.details
+      });
       return null;
     }
+
+    console.log(`✅ Storage 上傳成功: ${data.path}`);
 
     // 取得公開 URL
     const { data: urlData } = supabase.storage
       .from('chat-files')
       .getPublicUrl(storagePath);
 
-    return {
+    console.log(`🔗 公開 URL: ${urlData.publicUrl}`);
+
+    const result = {
       fileName,
       fileSize: buffer.byteLength,
       publicUrl: urlData.publicUrl,
-      originalUrl: `https://api-data.line.me/v2/bot/message/${message.id}/content`,
+      originalUrl: downloadUrl,
       storagePath,
       mimeType: contentType
     };
+
+    console.log(`✅ 檔案下載完成:`, result);
+    return result;
   } catch (error) {
-    console.error('處理檔案失敗:', error);
+    console.error('❌ 處理檔案時發生異常:', {
+      message: error.message,
+      stack: error.stack
+    });
     return null;
   }
 }
@@ -407,15 +433,39 @@ async function downloadAndSaveFile(message, groupId) {
 // 從 MIME type 取得副檔名
 function getExtensionFromMimeType(mimeType, messageType) {
   const mimeToExt = {
+    // 圖片
     'image/jpeg': '.jpg',
     'image/png': '.png',
     'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/bmp': '.bmp',
+    // 影片
     'video/mp4': '.mp4',
+    'video/quicktime': '.mov',
+    'video/x-msvideo': '.avi',
+    // 音訊
     'audio/m4a': '.m4a',
     'audio/mp3': '.mp3',
+    'audio/mpeg': '.mp3',
+    'audio/wav': '.wav',
+    // 文件
     'application/pdf': '.pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx'
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    'application/msword': '.doc',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.ms-powerpoint': '.ppt',
+    // 壓縮檔
+    'application/zip': '.zip',
+    'application/x-zip-compressed': '.zip',
+    'application/x-rar-compressed': '.rar',
+    'application/x-7z-compressed': '.7z',
+    'application/gzip': '.gz',
+    // 其他
+    'text/plain': '.txt',
+    'application/json': '.json',
+    'application/xml': '.xml'
   };
 
   if (mimeToExt[mimeType]) {
@@ -472,6 +522,7 @@ function getFileType(fileName, messageType) {
 
   const ext = fileName.split('.').pop()?.toLowerCase();
   const extToType = {
+    // 文件
     'pdf': 'pdf',
     'doc': 'word',
     'docx': 'word',
@@ -479,14 +530,30 @@ function getFileType(fileName, messageType) {
     'xlsx': 'excel',
     'ppt': 'powerpoint',
     'pptx': 'powerpoint',
+    // 圖片
     'jpg': 'image',
     'jpeg': 'image',
     'png': 'image',
     'gif': 'image',
+    'webp': 'image',
+    'bmp': 'image',
+    // 影片
     'mp4': 'video',
     'mov': 'video',
+    'avi': 'video',
+    // 音訊
     'mp3': 'audio',
-    'm4a': 'audio'
+    'm4a': 'audio',
+    'wav': 'audio',
+    // 壓縮檔
+    'zip': 'archive',
+    'rar': 'archive',
+    '7z': 'archive',
+    'gz': 'archive',
+    // 其他
+    'txt': 'text',
+    'json': 'text',
+    'xml': 'text'
   };
 
   return extToType[ext] || 'other';
