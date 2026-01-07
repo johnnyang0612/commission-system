@@ -331,7 +331,7 @@ const styles = {
   },
   guideSection: {
     backgroundColor: '#e7f3ff',
-    border: '1px solid '#0070f3',
+    border: '1px solid #0070f3',
     borderRadius: '6px',
     padding: '15px',
     marginTop: '20px'
