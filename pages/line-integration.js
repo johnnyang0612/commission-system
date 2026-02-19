@@ -65,17 +65,62 @@ export default function LineIntegration() {
   async function fetchLineGroups() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('line_groups')
-        .select(`
-          *,
-          prospects:prospect_id(id, client_name, project_name, stage),
-          projects:project_id(id, client_name, project_name, project_code)
-        `)
-        .order('last_message_at', { ascending: false, nullsFirst: false });
+      const canViewAll = ['admin', 'leader', 'finance'].includes(user?.role);
 
-      if (error) throw error;
-      setLineGroups(data || []);
+      if (canViewAll) {
+        // 管理層：看所有群組
+        const { data, error } = await supabase
+          .from('line_groups')
+          .select(`
+            *,
+            prospects:prospect_id(id, client_name, project_name, stage),
+            projects:project_id(id, client_name, project_name, project_code)
+          `)
+          .order('last_message_at', { ascending: false, nullsFirst: false });
+
+        if (error) throw error;
+        setLineGroups(data || []);
+      } else {
+        // 業務/PM：只看自己有在的群組
+        const { data: memberships, error: memberError } = await supabase
+          .from('line_group_members')
+          .select('group_id')
+          .eq('user_id', user.id);
+
+        if (memberError) throw memberError;
+
+        const myGroupIds = (memberships || []).map(m => m.group_id);
+
+        // 也包含自己是 owner 的群組
+        const { data: ownedGroups, error: ownedError } = await supabase
+          .from('line_groups')
+          .select('group_id')
+          .eq('owner_user_id', user.id);
+
+        if (!ownedError && ownedGroups) {
+          ownedGroups.forEach(g => {
+            if (!myGroupIds.includes(g.group_id)) myGroupIds.push(g.group_id);
+          });
+        }
+
+        if (myGroupIds.length === 0) {
+          setLineGroups([]);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('line_groups')
+          .select(`
+            *,
+            prospects:prospect_id(id, client_name, project_name, stage),
+            projects:project_id(id, client_name, project_name, project_code)
+          `)
+          .in('group_id', myGroupIds)
+          .order('last_message_at', { ascending: false, nullsFirst: false });
+
+        if (error) throw error;
+        setLineGroups(data || []);
+      }
     } catch (error) {
       console.error('取得 LINE 群組錯誤:', error);
     } finally {
