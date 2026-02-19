@@ -379,7 +379,9 @@ async function downloadAndSaveFile(message, groupId) {
     // 產生檔案名稱
     const ext = getExtensionFromMimeType(contentType, message.type);
     const fileName = message.fileName || `${message.type}_${message.id}${ext}`;
-    const storagePath = `chat/${groupId}/${Date.now()}_${fileName}`;
+    // Storage 路徑只用英文（避免中文檔名導致上傳失敗），原始檔名存 DB
+    const safeFileName = `${message.type}_${message.id}${ext}`;
+    const storagePath = `chat/${groupId}/${Date.now()}_${safeFileName}`;
 
     console.log(`📂 準備上傳到 Storage: path=${storagePath}`);
 
