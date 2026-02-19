@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useSimpleAuth } from '../utils/simpleAuth';
 
+const PAGE_SIZE = 50;
+
 const GROUP_TYPES = {
   prospect: { label: '客戶洽談', color: '#f59e0b', icon: '🎯' },
   internal: { label: '內部專屬', color: '#8b5cf6', icon: '👥' },
@@ -26,6 +28,16 @@ export default function LineIntegration() {
   const [aiSummary, setAiSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [groupMembers, setGroupMembers] = useState([]);
+  // Pagination
+  const [messageOffset, setMessageOffset] = useState(0);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Search & filter
+  const [searchText, setSearchText] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  // Lightbox
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -38,7 +50,12 @@ export default function LineIntegration() {
 
   useEffect(() => {
     if (selectedGroup) {
-      fetchMessages(selectedGroup.group_id);
+      setSearchText('');
+      setDateFrom('');
+      setDateTo('');
+      setMessageOffset(0);
+      setHasMoreMessages(false);
+      fetchMessages(selectedGroup.group_id, true);
       fetchFiles(selectedGroup.group_id);
       fetchGroupMembers(selectedGroup.group_id);
       setAiSummary(null);
@@ -128,20 +145,68 @@ export default function LineIntegration() {
     }
   }
 
-  async function fetchMessages(groupId) {
+  async function fetchMessages(groupId, reset = false, overrideFilters) {
     try {
-      const { data, error } = await supabase
+      const offset = reset ? 0 : messageOffset;
+      const filters = overrideFilters || { searchText, dateFrom, dateTo };
+
+      let query = supabase
         .from('line_messages')
         .select('*')
         .eq('group_id', groupId)
         .order('timestamp', { ascending: false })
-        .limit(100);
+        .range(offset, offset + PAGE_SIZE - 1);
 
+      if (filters.searchText) {
+        query = query.ilike('content', `%${filters.searchText}%`);
+      }
+      if (filters.dateFrom) {
+        query = query.gte('timestamp', filters.dateFrom + 'T00:00:00');
+      }
+      if (filters.dateTo) {
+        // Use next day to include the full "dateTo" day
+        const nextDay = new Date(filters.dateTo);
+        nextDay.setDate(nextDay.getDate() + 1);
+        query = query.lt('timestamp', nextDay.toISOString().split('T')[0] + 'T00:00:00');
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
-      setMessages(data || []);
+
+      const results = data || [];
+      if (reset) {
+        setMessages(results);
+        setMessageOffset(PAGE_SIZE);
+      } else {
+        setMessages(prev => [...prev, ...results]);
+        setMessageOffset(offset + PAGE_SIZE);
+      }
+      setHasMoreMessages(results.length === PAGE_SIZE);
     } catch (error) {
       console.error('取得訊息錯誤:', error);
     }
+  }
+
+  async function loadMoreMessages() {
+    if (!selectedGroup || loadingMore) return;
+    setLoadingMore(true);
+    await fetchMessages(selectedGroup.group_id, false);
+    setLoadingMore(false);
+  }
+
+  function handleSearch() {
+    if (!selectedGroup) return;
+    setMessageOffset(0);
+    fetchMessages(selectedGroup.group_id, true);
+  }
+
+  function handleClearFilters() {
+    if (!selectedGroup) return;
+    setSearchText('');
+    setDateFrom('');
+    setDateTo('');
+    setMessageOffset(0);
+    fetchMessages(selectedGroup.group_id, true, { searchText: '', dateFrom: '', dateTo: '' });
   }
 
   async function fetchFiles(groupId) {
@@ -227,6 +292,33 @@ export default function LineIntegration() {
     if (type === 'staff') return { bg: '#dbeafe', color: '#1d4ed8', label: '員工' };
     if (type === 'customer') return { bg: '#dcfce7', color: '#166534', label: '客戶' };
     return { bg: '#f3f4f6', color: '#374151', label: '' };
+  }
+
+  function getFileIcon(fileName) {
+    if (!fileName) return '📄';
+    const ext = fileName.split('.').pop().toLowerCase();
+    const icons = {
+      pdf: '📕', doc: '📘', docx: '📘', xls: '📗', xlsx: '📗',
+      ppt: '📙', pptx: '📙', zip: '🗜️', rar: '🗜️', '7z': '🗜️', gz: '🗜️',
+      jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', webp: '🖼️', bmp: '🖼️',
+      mp4: '🎬', mov: '🎬', avi: '🎬',
+      mp3: '🎵', m4a: '🎵', wav: '🎵',
+      txt: '📝', json: '📝', xml: '📝', csv: '📝'
+    };
+    return icons[ext] || '📄';
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function isImageFile(fileName) {
+    if (!fileName) return false;
+    const ext = fileName.split('.').pop().toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
   }
 
   const filteredGroups = filterType === 'all'
@@ -445,7 +537,7 @@ export default function LineIntegration() {
                         fontSize: '0.85rem'
                       }}
                     >
-                      {tab === 'messages' && `💬 訊息 (${messages.length})`}
+                      {tab === 'messages' && `💬 訊息 (${messages.length}${hasMoreMessages ? '+' : ''})`}
                       {tab === 'members' && `👥 成員 (${groupMembers.length})`}
                       {tab === 'files' && `📁 檔案 (${files.length})`}
                       {tab === 'summary' && '📊 AI 摘要'}
@@ -457,53 +549,162 @@ export default function LineIntegration() {
               {/* 內容區 */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
                 {activeTab === 'messages' && (
-                  messages.length === 0 ? (
-                    <div style={{ textAlign: 'center', color: '#666', padding: '2rem' }}>還沒有訊息</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {messages.map(msg => {
-                        const senderStyle = getSenderStyle(msg.sender_type);
-                        return (
-                          <div key={msg.id} style={{
-                            padding: '0.75rem',
-                            backgroundColor: senderStyle.bg,
-                            borderRadius: '8px',
-                            borderLeft: `3px solid ${senderStyle.color}`
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                              <span style={{ fontWeight: '500', fontSize: '0.85rem' }}>
-                                {msg.sender_name}
-                                {senderStyle.label && (
-                                  <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', color: senderStyle.color }}>
-                                    ({senderStyle.label})
+                  <div>
+                    {/* Search & Filter Toolbar */}
+                    <div style={{
+                      display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center'
+                    }}>
+                      <input
+                        type="text"
+                        placeholder="搜尋訊息內容..."
+                        value={searchText}
+                        onChange={e => setSearchText(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                        style={{
+                          flex: '1 1 180px', padding: '0.5rem 0.75rem',
+                          border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.85rem'
+                        }}
+                      />
+                      <input
+                        type="date" value={dateFrom}
+                        onChange={e => setDateFrom(e.target.value)}
+                        style={{ padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.85rem' }}
+                      />
+                      <span style={{ color: '#999', fontSize: '0.85rem' }}>~</span>
+                      <input
+                        type="date" value={dateTo}
+                        onChange={e => setDateTo(e.target.value)}
+                        style={{ padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.85rem' }}
+                      />
+                      <button onClick={handleSearch} style={{
+                        padding: '0.5rem 1rem', backgroundColor: '#3b82f6', color: 'white',
+                        border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem'
+                      }}>搜尋</button>
+                      {(searchText || dateFrom || dateTo) && (
+                        <button onClick={handleClearFilters} style={{
+                          padding: '0.5rem 1rem', backgroundColor: '#f3f4f6', color: '#374151',
+                          border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem'
+                        }}>清除</button>
+                      )}
+                    </div>
+
+                    {messages.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: '#666', padding: '2rem' }}>
+                        {(searchText || dateFrom || dateTo) ? '找不到符合條件的訊息' : '還沒有訊息'}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {messages.map(msg => {
+                          const senderStyle = getSenderStyle(msg.sender_type);
+                          return (
+                            <div key={msg.id} style={{
+                              padding: '0.75rem',
+                              backgroundColor: senderStyle.bg,
+                              borderRadius: '8px',
+                              borderLeft: `3px solid ${senderStyle.color}`
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                <span style={{ fontWeight: '500', fontSize: '0.85rem' }}>
+                                  {msg.sender_name}
+                                  {senderStyle.label && (
+                                    <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', color: senderStyle.color }}>
+                                      ({senderStyle.label})
+                                    </span>
+                                  )}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', color: '#666' }}>{formatDate(msg.timestamp)}</span>
+                              </div>
+
+                              {/* 訊息內容 */}
+                              <div style={{ fontSize: '0.9rem' }}>
+                                {msg.message_type === 'text' && msg.content}
+                                {msg.message_type === 'image' && (
+                                  <div>
+                                    {msg.file_url ? (
+                                      <img
+                                        src={msg.file_url} alt="圖片"
+                                        onClick={() => setLightboxUrl(msg.file_url)}
+                                        style={{ maxWidth: '300px', maxHeight: '200px', display: 'block', marginTop: '0.25rem', borderRadius: '8px', cursor: 'pointer' }}
+                                      />
+                                    ) : (
+                                      <span style={{ color: '#999' }}>🖼️ [圖片] (未儲存)</span>
+                                    )}
+                                  </div>
+                                )}
+                                {msg.message_type === 'video' && (
+                                  <div>
+                                    {msg.file_url ? (
+                                      <video controls style={{ maxWidth: '300px', maxHeight: '200px', display: 'block', marginTop: '0.25rem', borderRadius: '8px' }}>
+                                        <source src={msg.file_url} />
+                                        瀏覽器不支援影片播放
+                                      </video>
+                                    ) : (
+                                      <span style={{ color: '#999' }}>🎬 [影片] (未儲存)</span>
+                                    )}
+                                  </div>
+                                )}
+                                {msg.message_type === 'audio' && (
+                                  <div>
+                                    {msg.file_url ? (
+                                      <audio controls style={{ maxWidth: '100%', marginTop: '0.25rem' }}>
+                                        <source src={msg.file_url} />
+                                        瀏覽器不支援音訊播放
+                                      </audio>
+                                    ) : (
+                                      <span style={{ color: '#999' }}>🎵 [語音] {msg.duration ? `${msg.duration}秒` : ''} (未儲存)</span>
+                                    )}
+                                  </div>
+                                )}
+                                {msg.message_type === 'file' && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                    <span style={{ fontSize: '1.2rem' }}>{getFileIcon(msg.file_name)}</span>
+                                    <span>{msg.file_name || '[檔案]'}</span>
+                                    {msg.file_size && <span style={{ color: '#999', fontSize: '0.8rem' }}>({formatFileSize(msg.file_size)})</span>}
+                                    {msg.file_url ? (
+                                      <a href={msg.file_url} target="_blank" rel="noopener noreferrer"
+                                        style={{ padding: '0.2rem 0.6rem', backgroundColor: '#3b82f6', color: 'white', borderRadius: '4px', textDecoration: 'none', fontSize: '0.75rem' }}>
+                                        下載
+                                      </a>
+                                    ) : (
+                                      <span style={{ color: '#999', fontSize: '0.75rem' }}>(未儲存)</span>
+                                    )}
+                                  </div>
+                                )}
+                                {msg.message_type === 'sticker' && <span>😀 [貼圖]</span>}
+                                {msg.message_type === 'location' && (
+                                  <span>
+                                    📍 {msg.address || '[位置]'}
+                                    {msg.latitude && msg.longitude && (
+                                      <a href={`https://www.google.com/maps?q=${msg.latitude},${msg.longitude}`}
+                                        target="_blank" rel="noopener noreferrer"
+                                        style={{ marginLeft: '0.5rem', color: '#3b82f6', fontSize: '0.8rem' }}>
+                                        開啟地圖
+                                      </a>
+                                    )}
                                   </span>
                                 )}
-                              </span>
-                              <span style={{ fontSize: '0.75rem', color: '#666' }}>{formatDate(msg.timestamp)}</span>
+                              </div>
                             </div>
+                          );
+                        })}
 
-                            {/* 訊息內容 */}
-                            <div style={{ fontSize: '0.9rem' }}>
-                              {msg.message_type === 'text' && msg.content}
-                              {msg.message_type === 'image' && (
-                                <div>
-                                  🖼️ [圖片]
-                                  {msg.file_url && (
-                                    <img src={msg.file_url} alt="圖片" style={{ maxWidth: '200px', maxHeight: '150px', display: 'block', marginTop: '0.5rem', borderRadius: '8px' }} />
-                                  )}
-                                </div>
-                              )}
-                              {msg.message_type === 'video' && <span>🎬 [影片] {msg.file_url && <a href={msg.file_url} target="_blank" rel="noopener noreferrer">查看</a>}</span>}
-                              {msg.message_type === 'audio' && <span>🎵 [語音] {msg.duration && `${msg.duration}秒`}</span>}
-                              {msg.message_type === 'file' && <span>📄 {msg.file_name || '[檔案]'} {msg.file_url && <a href={msg.file_url} target="_blank" rel="noopener noreferrer">下載</a>}</span>}
-                              {msg.message_type === 'sticker' && <span>😀 [貼圖]</span>}
-                              {msg.message_type === 'location' && <span>📍 {msg.address || '[位置]'}</span>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )
+                        {/* Load More */}
+                        {hasMoreMessages && (
+                          <button
+                            onClick={loadMoreMessages}
+                            disabled={loadingMore}
+                            style={{
+                              padding: '0.75rem', backgroundColor: '#f3f4f6', color: '#374151',
+                              border: '1px solid #e5e7eb', borderRadius: '8px', cursor: loadingMore ? 'wait' : 'pointer',
+                              fontSize: '0.85rem', textAlign: 'center', marginTop: '0.5rem'
+                            }}
+                          >
+                            {loadingMore ? '載入中...' : '載入更多訊息'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {activeTab === 'members' && (
@@ -613,21 +814,39 @@ export default function LineIntegration() {
                           backgroundColor: '#f9fafb',
                           borderRadius: '8px'
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <span style={{ fontSize: '1.5rem' }}>
-                              {file.file_type === 'image' ? '🖼️' : file.file_type === 'video' ? '🎬' : file.file_type === 'pdf' ? '📕' : '📄'}
-                            </span>
-                            <div>
-                              <div style={{ fontWeight: '500', fontSize: '0.9rem' }}>{file.file_name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                            {/* Thumbnail or icon */}
+                            {isImageFile(file.file_name) && file.public_url ? (
+                              <img
+                                src={file.public_url} alt={file.file_name}
+                                onClick={() => setLightboxUrl(file.public_url)}
+                                style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: '6px', cursor: 'pointer', flexShrink: 0 }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>
+                                {getFileIcon(file.file_name)}
+                              </span>
+                            )}
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: '500', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {file.file_name}
+                              </div>
                               <div style={{ fontSize: '0.75rem', color: '#666' }}>
                                 {file.uploaded_by_name} • {formatDate(file.created_at)}
+                                {file.file_size ? ` • ${formatFileSize(file.file_size)}` : ''}
                               </div>
                             </div>
                           </div>
-                          <a href={file.public_url} target="_blank" rel="noopener noreferrer"
-                            style={{ padding: '0.4rem 0.75rem', backgroundColor: '#3b82f6', color: 'white', borderRadius: '6px', textDecoration: 'none', fontSize: '0.8rem' }}>
-                            下載
-                          </a>
+                          {file.public_url ? (
+                            <a href={file.public_url} target="_blank" rel="noopener noreferrer"
+                              style={{ padding: '0.4rem 0.75rem', backgroundColor: '#3b82f6', color: 'white', borderRadius: '6px', textDecoration: 'none', fontSize: '0.8rem', flexShrink: 0 }}>
+                              下載
+                            </a>
+                          ) : (
+                            <span style={{ padding: '0.4rem 0.75rem', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '6px', fontSize: '0.75rem', flexShrink: 0 }}>
+                              未儲存
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -693,6 +912,34 @@ export default function LineIntegration() {
           )}
         </div>
       </div>
+
+      {/* Image Lightbox */}
+      {lightboxUrl && (
+        <div
+          onClick={() => setLightboxUrl(null)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            zIndex: 1001, cursor: 'pointer'
+          }}
+        >
+          <button
+            onClick={() => setLightboxUrl(null)}
+            style={{
+              position: 'absolute', top: '1rem', right: '1rem',
+              backgroundColor: 'rgba(255,255,255,0.2)', color: 'white',
+              border: 'none', borderRadius: '50%', width: 36, height: 36,
+              fontSize: '1.2rem', cursor: 'pointer'
+            }}
+          >✕</button>
+          <img
+            src={lightboxUrl} alt="預覽"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '8px', cursor: 'default' }}
+          />
+        </div>
+      )}
 
       {/* 群組設定 Modal */}
       {showSettingsModal && selectedGroup && (
