@@ -9,6 +9,11 @@ export function useSimpleAuth() {
   const router = useRouter();
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     // 快速檢查用戶狀態
     const checkUser = async () => {
       console.log('checkUser: Starting authentication check');

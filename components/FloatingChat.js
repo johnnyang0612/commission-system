@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSimpleAuth } from '../utils/simpleAuth';
-import { supabase } from '../utils/supabaseClient';
 
 export default function FloatingChat() {
-  const { user } = useSimpleAuth();
+  const { user, loading: authLoading } = useSimpleAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -19,7 +18,7 @@ export default function FloatingChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   async function sendMessage(text) {
     if (!text.trim() || loading) return;

@@ -1,0 +1,5 @@
+[     902ms] [LOG] checkUser: Starting authentication check @ https://commission-system-delta.vercel.app/_next/static/chunks/pages/_app-7120a9770747b200.js:7
+[     906ms] [LOG] checkUser: Session found: false undefined @ https://commission-system-delta.vercel.app/_next/static/chunks/pages/_app-7120a9770747b200.js:7
+[     906ms] [LOG] checkUser: Setting loading to false @ https://commission-system-delta.vercel.app/_next/static/chunks/pages/_app-7120a9770747b200.js:7
+[     908ms] [LOG] Auth state changed: INITIAL_SESSION undefined @ https://commission-system-delta.vercel.app/_next/static/chunks/pages/_app-7120a9770747b200.js:7
+[    1153ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://commission-system-delta.vercel.app/favicon.ico:0
