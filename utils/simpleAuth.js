@@ -94,73 +94,73 @@ export function useSimpleAuth() {
 
     checkUser();
 
-    // 監聽認證狀態變化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // 監聯認證狀態變化
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth state changed:', event, session?.user?.email);
 
       if (session?.user) {
-        // 等 DB 查完才設 user + loading，避免角色時序問題
-        try {
-          const { data: userData } = await Promise.race([
-            supabase
-              .from('users')
-              .select('*')
-              .eq('email', session.user.email)
-              .single(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-          ]);
-
-          if (userData) {
-            // 合併 pre_ 用戶
-            if (userData.id.startsWith('pre_')) {
-              await supabase
-                .from('users')
-                .update({ id: session.user.id })
-                .eq('email', session.user.email);
-            }
-
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              name: userData.name,
-              role: userData.role || 'sales'
-            });
-          } else {
-            // DB 沒有記錄，建立新用戶
-            const { data: newUser } = await supabase
-              .from('users')
-              .insert([{
-                id: session.user.id,
-                email: session.user.email,
-                name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-                role: 'sales'
-              }])
-              .select()
-              .single();
-
-            setUser({
-              id: session.user.id,
-              email: session.user.email,
-              name: newUser?.name || session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-              role: newUser?.role || 'sales'
-            });
-          }
-        } catch (error) {
-          console.error('Auth state change fetch error:', error);
-          // Timeout 或其他錯誤 — 用最低權限 fallback
+        // 用獨立 async 函數查 DB，等查完才設 user
+        fetchUserFromDB(session.user).then(userData => {
+          setUser(userData);
+          setLoading(false);
+        }).catch(() => {
+          // 所有錯誤都 fallback 到最低權限
           setUser({
             id: session.user.id,
             email: session.user.email,
             name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
             role: 'sales'
           });
-        }
-        setLoading(false);
+          setLoading(false);
+        });
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
       }
     });
+
+    // 從 DB 查詢用戶資料（共用邏輯）
+    async function fetchUserFromDB(authUser) {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', authUser.email)
+        .single();
+
+      if (userData) {
+        if (userData.id.startsWith('pre_')) {
+          await supabase
+            .from('users')
+            .update({ id: authUser.id })
+            .eq('email', authUser.email);
+        }
+        return {
+          id: authUser.id,
+          email: authUser.email,
+          name: userData.name,
+          role: userData.role || 'sales'
+        };
+      }
+
+      // DB 沒有記錄，建新用戶
+      const { data: newUser } = await supabase
+        .from('users')
+        .insert([{
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+          role: 'sales'
+        }])
+        .select()
+        .single();
+
+      return {
+        id: authUser.id,
+        email: authUser.email,
+        name: newUser?.name || authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+        role: newUser?.role || 'sales'
+      };
+    }
 
     return () => {
       subscription.unsubscribe();
