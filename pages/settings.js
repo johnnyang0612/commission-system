@@ -12,27 +12,30 @@ export default function Settings() {
   const [users, setUsers] = useState([]);
   const [documents, setDocuments] = useState([]);
 
-  useEffect(() => {
-    if (!authLoading) {
-      checkAccess();
-    }
-  }, [authLoading, authUser]);
+  // 等角色從 DB 載入完成再判斷（避免 onAuthStateChange 的 sales 預設值誤判）
+  const [roleChecked, setRoleChecked] = useState(false);
 
-  async function checkAccess() {
+  useEffect(() => {
+    if (authLoading) return;
     if (!authUser) {
       router.push('/login');
       return;
     }
 
-    // admin 和 leader 都可以進入設定頁面
+    // 如果角色還是預設的 sales 且剛載入，等 500ms 讓 DB 查詢完成
+    if (authUser.role === 'sales' && !roleChecked) {
+      const timer = setTimeout(() => setRoleChecked(true), 600);
+      return () => clearTimeout(timer);
+    }
+
+    // 角色確定了，檢查權限
     if (authUser.role !== USER_ROLES.ADMIN && authUser.role !== USER_ROLES.LEADER) {
       router.push('/dashboard');
       return;
     }
 
-    await loadData();
-    setLoading(false);
-  }
+    loadData().then(() => setLoading(false));
+  }, [authLoading, authUser, roleChecked]);
 
   const isAdmin = authUser?.role === USER_ROLES.ADMIN;
   const isLeader = authUser?.role === USER_ROLES.LEADER;
