@@ -2,6 +2,7 @@ import '../styles/globals.css';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 import Layout from '../components/Layout';
+import FloatingChat from '../components/FloatingChat';
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -16,6 +17,7 @@ function MyApp({ Component, pageProps }) {
     return (
       <Layout>
         <Component {...pageProps} />
+        <FloatingChat />
       </Layout>
     );
   }
