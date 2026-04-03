@@ -94,7 +94,7 @@ export default function Dashboard() {
         await loadFinanceDashboard();
         break;
       default:
-        await loadDefaultDashboard();
+        await loadDefaultDashboard(currentUser);
     }
   };
 
@@ -345,13 +345,19 @@ export default function Dashboard() {
     }
   };
 
-  const loadDefaultDashboard = async () => {
-    // 載入基本數據
-    const { data: projects } = await supabase
+  const loadDefaultDashboard = async (currentUser) => {
+    // 載入基本數據，依角色過濾
+    let query = supabase
       .from('projects')
-      .select('*')
-      .limit(10);
-    
+      .select('*');
+
+    // 業務角色只能看到自己負責的專案
+    if (currentUser && currentUser.role === 'sales') {
+      query = query.or(`assigned_to.eq.${currentUser.id},manager_id.eq.${currentUser.id}`);
+    }
+
+    const { data: projects } = await query.limit(10);
+
     setDashboardData({
       recentProjects: projects || []
     });

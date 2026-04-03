@@ -104,7 +104,7 @@ export function useSimpleAuth() {
           id: session.user.id,
           email: session.user.email,
           name: session.user.user_metadata?.full_name || session.user.email.split('@')[0],
-          role: 'admin' // 暫時設為 admin 避免權限問題
+          role: 'sales' // 預設為最低權限，待從資料庫獲取實際角色
         };
         
         console.log('Auth state change: Setting basic user and clearing loading immediately');

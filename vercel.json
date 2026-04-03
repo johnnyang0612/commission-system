@@ -7,8 +7,24 @@
       "schedule": "0 8 * * *"
     },
     {
+      "path": "/api/cron/meeting-reminders-v2",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/task-reminders",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/auto-summary",
       "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/warranty-maintenance",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/maintenance-billing",
+      "schedule": "0 2 1 * *"
     }
   ]
 }

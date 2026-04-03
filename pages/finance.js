@@ -55,8 +55,21 @@ export default function Finance() {
 
   async function loadData() {
     setLoading(true);
-    const user = getCurrentUser();
+
+    // 取得登入用戶資料
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      router.push('/login');
+      return;
+    }
+    const user = await getCurrentUser(authUser);
     setCurrentUser(user);
+
+    // 業務角色導向個人分潤頁
+    if (user && user.role === 'sales') {
+      router.push('/my-payouts');
+      return;
+    }
 
     await Promise.all([
       fetchStats(),
@@ -658,12 +671,29 @@ export default function Finance() {
     );
   }
 
+  // 權限檢查：僅限管理員及財務角色
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'finance')) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>🔒</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: '#1e293b' }}>無權限存取</div>
+        <div style={{ fontSize: 14, color: '#64748b', marginTop: 8 }}>財務中心僅限管理員及財務角色使用</div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.page}>
       {/* 頁面標題和操作按鈕 */}
       <div style={styles.header}>
         <h1 style={styles.title}>財務中心</h1>
         <div style={styles.headerActions}>
+          <button
+            onClick={() => router.push('/commission-center')}
+            style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+          >
+            分潤中心 V2
+          </button>
           <button
             onClick={() => setShowAddPayment(true)}
             style={{ ...styles.actionBtn, background: '#10b981', color: 'white' }}

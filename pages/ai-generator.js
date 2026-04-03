@@ -180,7 +180,30 @@ export default function AIGenerator() {
 
       setAnalysisResult(data.analysis);
 
-      // 自動填入表單
+      // Save extraction result and redirect to confirmation page
+      if (data.analysis && supabase) {
+        const { data: extraction, error: insertError } = await supabase
+          .from('contract_extraction_results')
+          .insert([{
+            raw_extraction: data.analysis,
+            normalized_data: data.analysis,
+            confidence_scores: data.analysis.confidence_scores || null,
+            status: 'pending'
+          }])
+          .select()
+          .single();
+
+        if (extraction && !insertError) {
+          router.push(`/contract-confirm?extraction_id=${extraction.id}`);
+          return;
+        }
+        // If save failed, fall back to inline display
+        if (insertError) {
+          console.error('儲存抽取結果失敗:', insertError);
+        }
+      }
+
+      // Fallback: auto-fill form if redirect didn't happen
       if (data.analysis) {
         setProjectForm({
           client_name: data.analysis.client_name || '',

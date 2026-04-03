@@ -14,15 +14,59 @@ export default function LaborReceipts() {
     userId: ''
   });
   const [generating, setGenerating] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    fetchLaborReceipts();
+    initAndFetch();
   }, []);
+
+  async function initAndFetch() {
+    // 取得當前用戶資料以進行權限控制
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id, name, email, role')
+        .eq('id', authUser.id)
+        .single();
+      if (userData) {
+        setCurrentUser(userData);
+        // 業務角色只能看到自己的勞報單
+        if (userData.role === 'sales') {
+          const salesFilters = { ...filters, userId: userData.id };
+          setFilters(salesFilters);
+          await fetchLaborReceiptsWithFilters(salesFilters);
+          return;
+        }
+      }
+    }
+    await fetchLaborReceipts();
+  }
+
+  async function fetchLaborReceiptsWithFilters(overrideFilters) {
+    setLoading(true);
+    try {
+      const result = await getLaborReceipts(overrideFilters);
+      if (result.success) {
+        setReceipts(result.data);
+      } else {
+        console.error('獲取勞務報酬單失敗:', result.error);
+      }
+    } catch (error) {
+      console.error('獲取勞務報酬單錯誤:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function fetchLaborReceipts() {
     setLoading(true);
     try {
-      const result = await getLaborReceipts(filters);
+      // 業務角色強制過濾自己的資料
+      const effectiveFilters = (currentUser && currentUser.role === 'sales')
+        ? { ...filters, userId: currentUser.id }
+        : filters;
+      const result = await getLaborReceipts(effectiveFilters);
       if (result.success) {
         setReceipts(result.data);
       } else {

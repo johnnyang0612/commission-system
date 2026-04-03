@@ -162,6 +162,7 @@ export default function Settings() {
   // 根據角色顯示不同的 tabs
   const tabs = [
     { id: 'users', label: '用戶管理', icon: '👥' },
+    { id: 'contacts', label: '聯絡人管理', icon: '📇' },
     ...(isAdmin ? [{ id: 'knowledge', label: '知識庫', icon: '📚' }] : [])
   ];
 
@@ -389,6 +390,34 @@ export default function Settings() {
               );
             })
           )}
+        </div>
+      )}
+
+      {/* 聯絡人管理 Tab */}
+      {activeTab === 'contacts' && (
+        <div style={styles.section}>
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.5 }}>📇</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#1e293b', marginBottom: 8 }}>聯絡人身份管理</div>
+            <div style={{ fontSize: 14, color: '#64748b', marginBottom: 20 }}>
+              管理 LINE 群組成員身份、綁定內部員工、標記 VIP 客戶
+            </div>
+            <button
+              onClick={() => router.push('/contact-management')}
+              style={{
+                padding: '12px 24px',
+                background: '#2563eb',
+                color: 'white',
+                border: 'none',
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+            >
+              前往聯絡人管理
+            </button>
+          </div>
         </div>
       )}
 

@@ -31,15 +31,21 @@ export default function Meetings() {
   async function fetchMeetings() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('meeting_records')
         .select(`
           *,
           prospects:prospect_id(id, client_name, project_name, stage),
           projects:project_id(id, client_name, project_name),
           users:user_id(id, name)
-        `)
-        .order('meeting_date', { ascending: false });
+        `);
+
+      // 業務角色只能看到自己的會議紀錄
+      if (user && user.role === 'sales') {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query.order('meeting_date', { ascending: false });
 
       if (error) throw error;
       setMeetings(data || []);

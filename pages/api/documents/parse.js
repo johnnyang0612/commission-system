@@ -1,11 +1,13 @@
-// 文件解析 API - 將 PDF/Word 轉換為純文字
+// 文件解析 API - 將 PDF/Word/圖片轉換為純文字（V2 增強版）
 import { supabase } from '../../../utils/supabaseClient';
+import { parseDocument } from '../../../utils/documentParser';
 
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb',
+      sizeLimit: '50mb',
     },
+    responseLimit: false,
   },
 };
 
@@ -41,44 +43,27 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: '下載文件失敗', details: downloadError.message });
     }
 
-    // 3. 根據文件類型解析內容
-    let extractedText = '';
-    const fileType = doc.file_type?.toLowerCase() || '';
-    const fileName = doc.file_name?.toLowerCase() || '';
+    // 3. 使用文件解析引擎 V2 處理文件
+    const fileBuffer = Buffer.from(await fileData.arrayBuffer());
+    const fileName = doc.file_name || doc.document_name || 'document';
+    const mimeType = doc.file_type || '';
 
-    if (fileType.includes('pdf') || fileName.endsWith('.pdf')) {
-      // 解析 PDF
-      extractedText = await parsePDF(fileData);
-    } else if (
-      fileType.includes('word') ||
-      fileType.includes('document') ||
-      fileName.endsWith('.docx') ||
-      fileName.endsWith('.doc')
-    ) {
-      // 解析 Word
-      extractedText = await parseWord(fileData);
-    } else if (fileType.includes('text') || fileName.endsWith('.txt')) {
-      // 純文字
-      extractedText = await fileData.text();
-    } else {
+    console.log(`[parse API] 開始解析文件: ${fileName}, 類型: ${mimeType}, 大小: ${fileBuffer.length} bytes`);
+
+    const parseResult = await parseDocument(fileBuffer, fileName, mimeType);
+
+    if (!parseResult.success) {
       return res.status(400).json({
-        error: '不支援的文件格式',
-        supported: ['PDF', 'Word (.docx)', 'Text (.txt)'],
-        received: fileType || fileName
+        error: parseResult.error,
+        supported: parseResult.supported,
+        parse_method: parseResult.metadata?.parseMethod,
+        hint: parseResult.metadata?.parseMethod?.includes('vision')
+          ? 'Vision OCR 未能提取足夠文字，請確認文件內容清晰'
+          : '請確認文件不是空白文件'
       });
     }
 
-    // 4. 清理文字
-    extractedText = cleanText(extractedText);
-
-    if (!extractedText || extractedText.length < 10) {
-      return res.status(400).json({
-        error: '無法從文件中提取有效內容',
-        hint: '請確認文件不是掃描圖片或空白文件'
-      });
-    }
-
-    // 5. 回傳結果
+    // 4. 回傳結果
     return res.status(200).json({
       success: true,
       document_id: doc.id,
@@ -86,9 +71,12 @@ export default async function handler(req, res) {
       document_type: doc.document_type,
       project_id: doc.project_id,
       client_name: doc.projects?.client_name || '',
-      content_length: extractedText.length,
-      content_preview: extractedText.substring(0, 500) + '...',
-      content_text: extractedText
+      content_length: parseResult.content_text.length,
+      content_preview: parseResult.content_text.substring(0, 500) + '...',
+      content_text: parseResult.content_text,
+      parse_method: parseResult.metadata.parseMethod,
+      chunk_count: parseResult.metadata.chunkCount,
+      page_count: parseResult.metadata.pageCount
     });
 
   } catch (error) {
@@ -98,45 +86,4 @@ export default async function handler(req, res) {
       details: error.message
     });
   }
-}
-
-// PDF 解析
-async function parsePDF(fileBlob) {
-  try {
-    const pdfParse = (await import('pdf-parse')).default;
-    const buffer = Buffer.from(await fileBlob.arrayBuffer());
-    const data = await pdfParse(buffer);
-    return data.text;
-  } catch (error) {
-    console.error('PDF 解析錯誤:', error);
-    throw new Error('PDF 解析失敗: ' + error.message);
-  }
-}
-
-// Word 解析
-async function parseWord(fileBlob) {
-  try {
-    const mammoth = await import('mammoth');
-    const buffer = Buffer.from(await fileBlob.arrayBuffer());
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
-  } catch (error) {
-    console.error('Word 解析錯誤:', error);
-    throw new Error('Word 解析失敗: ' + error.message);
-  }
-}
-
-// 清理文字
-function cleanText(text) {
-  if (!text) return '';
-
-  return text
-    // 移除多餘空白
-    .replace(/\s+/g, ' ')
-    // 移除特殊控制字元
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    // 保留換行但限制連續換行數量
-    .replace(/\n{3,}/g, '\n\n')
-    // 移除首尾空白
-    .trim();
 }

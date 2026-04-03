@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { canViewFinancialData, getCurrentUser, getCurrentUserRole } from '../utils/permissions';
 import { autoPayoutCommissions } from '../utils/commissionPayoutManager';
+import { autoProcessPayment } from '../utils/commissionEngineV2';
 
 export default function Payments() {
   const [payments, setPayments] = useState([]);
@@ -102,14 +103,27 @@ export default function Payments() {
       });
       fetchPayments();
 
-      const autoPayoutResult = await autoPayoutCommissions(
+      // V2 引擎：依未稅實收金額計算分潤 + 自動產生勞報單
+      const v2Result = await autoProcessPayment(
         formData.project_id,
+        null, // paymentScheduleId - 由 syncWithProjectInstallments 處理
         parseFloat(formData.amount),
-        null
+        0.05 // 預設稅率 5%
       );
 
-      if (autoPayoutResult.success && autoPayoutResult.payoutsProcessed > 0) {
-        alert(`收款登錄成功！\n\n已自動撥款 ${autoPayoutResult.payoutsProcessed} 筆分潤，並產生對應勞務報酬單。`);
+      if (v2Result.success && v2Result.results?.length > 0) {
+        const totalCommission = v2Result.results.reduce((sum, r) => sum + (r.calculated_commission || 0), 0);
+        alert(`收款登錄成功！\n\n已自動計算 ${v2Result.results.length} 筆分潤（共 NT$ ${totalCommission.toLocaleString()}），並產生對應勞務報酬單。`);
+      } else {
+        // Fallback 到舊引擎
+        const autoPayoutResult = await autoPayoutCommissions(
+          formData.project_id,
+          parseFloat(formData.amount),
+          null
+        );
+        if (autoPayoutResult.success && autoPayoutResult.payoutsProcessed > 0) {
+          alert(`收款登錄成功！\n\n已自動撥款 ${autoPayoutResult.payoutsProcessed} 筆分潤，並產生對應勞務報酬單。`);
+        }
       }
 
       await syncWithProjectInstallments(formData.project_id, parseFloat(formData.amount));

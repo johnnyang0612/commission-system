@@ -224,7 +224,7 @@ export default function Prospects() {
 
   const fetchProspects = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('prospects')
         .select(`
           *,
@@ -232,6 +232,13 @@ export default function Prospects() {
         `)
         .not('stage', 'eq', '已轉換')
         .order('created_at', { ascending: false });
+
+      // Role-based filtering: sales can only see their own prospects
+      if (user && user.role === 'sales') {
+        query = query.eq('owner_id', user.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setProspects(data || []);

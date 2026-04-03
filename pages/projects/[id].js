@@ -7,6 +7,7 @@ import FileUpload from '../../components/FileUpload';
 import ProjectDocuments from '../../components/ProjectDocuments';
 import { STORAGE_BUCKETS, FOLDER_STRUCTURE } from '../../utils/fileUpload';
 import { generateInstallmentLaborForm } from '../../utils/laborFormGenerator';
+import ProjectV2Sections from '../../components/ProjectV2Sections';
 
 export default function ProjectDetail() {
   const router = useRouter();
@@ -3724,6 +3725,9 @@ export default function ProjectDetail() {
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', marginBottom: '2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <ProjectDocuments projectId={id} userRole={userRole} />
       </div>
+
+      {/* V2 合約管理區塊：里程碑、付款期程、保固維護、分潤規則 */}
+      {project && <ProjectV2Sections projectId={id} />}
     </div>
   );
 }

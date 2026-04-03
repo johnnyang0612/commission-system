@@ -94,8 +94,8 @@ export function isFinancialRole(userRole) {
  * @returns {string}
  */
 export function getDefaultUserRole() {
-  // 預設給予管理員權限以便測試
-  return USER_ROLES.ADMIN;
+  // 預設給予最低權限角色
+  return USER_ROLES.SALES;
 }
 
 /**
@@ -116,13 +116,6 @@ export async function getCurrentUserRole(userId) {
     
     if (error) {
       console.warn('無法獲取用戶角色，使用預設值:', error);
-      // 如果是特定 email，給予管理員權限
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email === 'johnny.yang@brightstream.com.tw' || 
-          user?.email === 'johnnyang0612@gmail.com' ||
-          user?.email === 'johnny19940612@gmail.com') {
-        return USER_ROLES.ADMIN;
-      }
       return USER_ROLES.SALES; // 預設為業務
     }
     
@@ -161,18 +154,7 @@ export async function getCurrentUser(authUser) {
     
     if (error) {
       console.warn('無法獲取用戶資料:', error);
-      // 特定 email 給予管理員權限
-      if (authUser.email === 'johnny.yang@brightstream.com.tw' || 
-          authUser.email === 'johnnyang0612@gmail.com' ||
-          authUser.email === 'johnny19940612@gmail.com') {
-        return {
-          id: authUser.id,
-          email: authUser.email,
-          name: authUser.user_metadata?.full_name || 'Johnny Yang',
-          role: USER_ROLES.ADMIN
-        };
-      }
-      // 其他用戶預設為業務
+      // 預設為業務（最低權限）
       return {
         id: authUser.id,
         email: authUser.email,

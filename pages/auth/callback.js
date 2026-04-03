@@ -61,6 +61,42 @@ export default function AuthCallback() {
             }
           }
           
+          // 如果是 admin，存下 Google token 供全系統使用（建立會議等）
+          if (data.session?.provider_token && data.session?.provider_refresh_token) {
+            try {
+              const { data: userData } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', data.session.user.id)
+                .single();
+
+              if (userData?.role === 'admin') {
+                // 存 refresh_token 到系統設定（永久有效，可隨時換新 access_token）
+                await supabase
+                  .from('system_settings')
+                  .upsert({
+                    key: 'google_admin_refresh_token',
+                    value: data.session.provider_refresh_token,
+                    updated_at: new Date().toISOString(),
+                    updated_by: data.session.user.id
+                  }, { onConflict: 'key' });
+
+                await supabase
+                  .from('system_settings')
+                  .upsert({
+                    key: 'google_admin_email',
+                    value: data.session.user.email,
+                    updated_at: new Date().toISOString(),
+                    updated_by: data.session.user.id
+                  }, { onConflict: 'key' });
+
+                console.log('✅ Admin Google token 已儲存');
+              }
+            } catch (tokenErr) {
+              console.error('儲存 Google token 失敗:', tokenErr);
+            }
+          }
+
           // 成功登入，跳轉到首頁
           router.push('/');
         }

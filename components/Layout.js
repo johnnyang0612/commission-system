@@ -21,7 +21,7 @@ export default function Layout({ children }) {
       return router.pathname === '/finance' || router.pathname === '/payments' || router.pathname === '/commissions' || router.pathname === '/my-payouts' || router.pathname === '/labor-receipts';
     }
     if (path === '/ai-generator') {
-      return router.pathname === '/ai-generator' || router.pathname === '/knowledge-base';
+      return router.pathname === '/ai-generator' || router.pathname === '/knowledge-base' || router.pathname === '/ai-chat';
     }
     if (path === '/line-integration') {
       return router.pathname === '/line-integration' || router.pathname === '/meetings';
