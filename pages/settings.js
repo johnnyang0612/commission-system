@@ -284,6 +284,39 @@ export default function Settings() {
         ))}
       </div>
 
+      {/* Google Calendar 授權提示 */}
+      {isAdmin && router.query.google_auth === 'success' && (
+        <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: 16, marginBottom: 16, color: '#065f46' }}>
+          ✅ Google Calendar 授權成功！現在可以建立 Google Meet 會議了。
+        </div>
+      )}
+      {isAdmin && router.query.google_auth === 'error' && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 16, marginBottom: 16, color: '#991b1b' }}>
+          ❌ Google Calendar 授權失敗：{router.query.message || '未知錯誤'}
+        </div>
+      )}
+
+      {/* Google Calendar 授權按鈕（僅 admin）*/}
+      {isAdmin && activeTab === 'users' && (
+        <div style={{ background: 'white', borderRadius: 12, padding: 20, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#1e293b', marginBottom: 4 }}>Google Calendar 整合</div>
+            <div style={{ fontSize: 13, color: '#64748b' }}>授權後，川輝AI助理建立會議時會自動建立 Google Calendar 事件 + Meet 連結</div>
+          </div>
+          <button
+            onClick={async () => {
+              const res = await fetch('/api/google/auth-url');
+              const data = await res.json();
+              if (data.url) window.location.href = data.url;
+              else alert('產生授權連結失敗：' + (data.error || '未知錯誤'));
+            }}
+            style={{ padding: '10px 20px', background: '#4285f4', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            授權 Google Calendar
+          </button>
+        </div>
+      )}
+
       {/* 用戶管理 Tab */}
       {activeTab === 'users' && (
         <div style={styles.section}>
