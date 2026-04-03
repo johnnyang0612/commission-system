@@ -1,7 +1,7 @@
 // 定時任務：檢查並發送會議提醒
 // 建議用 Vercel Cron 或外部服務每小時呼叫一次
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 

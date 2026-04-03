@@ -1,5 +1,5 @@
 // AI Agent 執行引擎 - 解析 AI 意圖並執行系統操作
-import { supabase } from './supabaseClient';
+import { supabaseAdmin as supabase } from './supabaseAdmin';
 
 // 權限等級對應角色
 const PERMISSION_ROLES = {

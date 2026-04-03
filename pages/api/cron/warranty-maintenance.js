@@ -1,7 +1,7 @@
 // 保固到期 + 維護費自動啟動 Cron Job
 // 每天 UTC 01:00 執行，檢查保固狀態並自動啟動維護計畫
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 export default async function handler(req, res) {
   // 驗證 cron secret

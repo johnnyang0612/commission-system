@@ -1,5 +1,5 @@
 // 分潤撥款管理工具
-import { supabase } from './supabaseClient';
+import { supabaseAdmin as supabase } from './supabaseAdmin';
 import { generateLaborReceipt } from './laborReceiptGenerator';
 
 /**

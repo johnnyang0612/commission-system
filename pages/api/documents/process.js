@@ -1,5 +1,5 @@
 // 文件處理整合 API - 解析 + 向量化一次完成
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMBEDDING_MODEL = 'text-embedding-3-small';

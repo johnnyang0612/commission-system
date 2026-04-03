@@ -2,7 +2,7 @@
 // 接收 LINE 群組訊息並自動記錄
 
 import crypto from 'crypto';
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;

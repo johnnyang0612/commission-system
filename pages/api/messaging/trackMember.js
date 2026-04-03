@@ -1,7 +1,7 @@
 // 追蹤群組成員
 // 當員工在群組發訊息時，自動記錄並偵測角色
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 export async function trackGroupMember(groupId, lineUserId, senderType) {
   // 只追蹤員工

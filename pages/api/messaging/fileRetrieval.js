@@ -2,7 +2,7 @@
 // 當使用者回覆一則過期檔案訊息並輸入「取回」「取檔」「找檔」時，
 // 從 Supabase Storage 找到備份並重新發送連結
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 import { sendLineReply, sendLinePush } from '../../../utils/lineReply';
 
 // API handler（可直接呼叫）

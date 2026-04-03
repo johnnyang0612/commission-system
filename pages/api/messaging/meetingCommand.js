@@ -1,7 +1,7 @@
 // LINE 群組會議指令處理
 // 解析 /建立會議、/會議、/meeting 等指令，建立會議並通知群組
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 import { createCalendarEvent, getAdminGoogleAccessToken } from '../../../utils/googleCalendar';
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;

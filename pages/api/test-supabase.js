@@ -1,5 +1,5 @@
 // 測試 Supabase 連線
-import { supabase } from '../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../utils/supabaseAdmin';
 
 export default async function handler(req, res) {
   const diagnostics = {

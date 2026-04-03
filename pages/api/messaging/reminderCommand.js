@@ -1,7 +1,7 @@
 // 任務提醒指令處理
 // 支援建立、取消、查看提醒
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;

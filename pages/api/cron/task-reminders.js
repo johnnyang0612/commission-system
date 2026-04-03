@@ -1,7 +1,7 @@
 // 定時任務：任務提醒
 // 每 15 分鐘執行，發送到期的任務提醒到 LINE 群組
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 

@@ -1,7 +1,7 @@
 // LINE 帳號綁定 API
 // 員工透過 LINE Login 綁定帳號
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 import crypto from 'crypto';
 
 const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID;

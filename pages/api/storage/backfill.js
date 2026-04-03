@@ -1,7 +1,7 @@
 // 檔案回溯 API
 // 補下載之前沒有成功儲存的 LINE 檔案
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 

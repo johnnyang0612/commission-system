@@ -1,5 +1,5 @@
 // 單一會議紀錄 API - GET/PUT/DELETE
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 export default async function handler(req, res) {
   const { id } = req.query;

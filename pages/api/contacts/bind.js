@@ -1,7 +1,7 @@
 // Contact Bind API
 // POST: Bind a LINE user to a contact identity or internal user
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 export default async function handler(req, res) {
   if (!supabase) {

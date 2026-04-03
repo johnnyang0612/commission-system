@@ -2,7 +2,7 @@
 // 使用儲存的 Admin Google refresh_token 來操作 Google Calendar
 // 所有會議統一由管理員帳號建立，受邀者會收到日曆邀請
 
-import { supabase } from './supabaseClient';
+import { supabaseAdmin as supabase } from './supabaseAdmin';
 
 // Google OAuth 設定（從 Supabase 的 Google provider 取得）
 // 這些值在 Supabase Dashboard → Auth → Providers → Google 裡可以找到

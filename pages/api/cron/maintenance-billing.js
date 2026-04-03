@@ -1,7 +1,7 @@
 // 維護費帳單產生 Cron Job
 // 每月 1 日 UTC 02:00 執行，為活躍維護計畫產生當期帳單
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 export default async function handler(req, res) {
   // 驗證 cron secret

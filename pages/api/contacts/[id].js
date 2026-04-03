@@ -2,7 +2,7 @@
 // GET: Get single contact with related group_participants
 // DELETE: Delete contact identity (admin only)
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 // Auth helper: verify caller is a real user
 async function verifyUser(req) {

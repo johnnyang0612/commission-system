@@ -1,7 +1,7 @@
 // LINE 群組知識問答 API
 // 根據群組歷史訊息、會議記錄、專案/洽談資料回答問題
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 import { sendLineReply, sendLinePush } from '../../../utils/lineReply';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;

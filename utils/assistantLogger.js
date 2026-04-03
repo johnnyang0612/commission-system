@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabaseAdmin as supabase } from './supabaseAdmin';
 
 /**
  * Log an assistant command/action for audit trail

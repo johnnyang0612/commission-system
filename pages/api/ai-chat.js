@@ -1,11 +1,8 @@
 // AI Chat API - 川輝AI助理對話介面（含操作執行能力）
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin as supabase } from '../../utils/supabaseAdmin';
 import { parseIntent, executeOperation, logCommand } from '../../utils/agentExecutor';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export const config = {
   api: {
@@ -32,11 +29,9 @@ export default async function handler(req, res) {
     });
   }
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabase) {
     return res.status(500).json({ error: '缺少 Supabase 設定' });
   }
-
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
   try {
     // ===== 取得使用者資訊 =====

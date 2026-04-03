@@ -1,7 +1,7 @@
 // 保固/維護狀態診斷端點
 // 提供管理員手動檢查保固到期狀態與維護計畫啟動情形
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {

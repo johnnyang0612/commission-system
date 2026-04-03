@@ -2,7 +2,7 @@
 // T-1 day (前一天) 和 T-1 hour (前一小時) 兩階段提醒
 // 建議 Vercel Cron 每 15 分鐘執行一次
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 

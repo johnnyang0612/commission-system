@@ -1,6 +1,6 @@
 // AI 會議偵測 - 從訊息中偵測會議時間
 import Anthropic from '@anthropic-ai/sdk';
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

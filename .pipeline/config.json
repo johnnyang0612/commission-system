@@ -1,0 +1,10 @@
+{
+  "projectDir": "E:/commission-system",
+  "projectName": "commission-system-upgrade",
+  "defaultBranch": "main",
+  "notifications": {
+    "methods": [
+      { "type": "file", "enabled": true }
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 // 會議紀錄 AI 分析 API
 // 分析會議內容，自動配對洽談案，提取重點和行動項目
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 

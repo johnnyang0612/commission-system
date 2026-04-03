@@ -1,4 +1,4 @@
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 import { deleteCalendarEvent, getAdminGoogleAccessToken } from '../../../utils/googleCalendar';
 
 export default async function handler(req, res) {

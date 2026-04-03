@@ -1,7 +1,7 @@
 // 群組成員模糊查找工具
 // 支援：精確匹配、模糊匹配、暱稱、部分名字、不區分大小寫
 
-import { supabase } from './supabaseClient';
+import { supabaseAdmin as supabase } from './supabaseAdmin';
 
 /**
  * 在群組中模糊搜尋成員

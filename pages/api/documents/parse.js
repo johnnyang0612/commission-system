@@ -1,5 +1,5 @@
 // 文件解析 API - 將 PDF/Word/圖片轉換為純文字（V2 增強版）
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 import { parseDocument } from '../../../utils/documentParser';
 
 export const config = {

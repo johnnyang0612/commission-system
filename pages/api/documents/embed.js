@@ -1,5 +1,5 @@
 // 文件向量化 API - 將文字轉換為向量並儲存
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const EMBEDDING_MODEL = 'text-embedding-3-small'; // 或 'text-embedding-ada-002'

@@ -3,7 +3,7 @@
 // POST: Create new contact identity
 // PUT: Update contact identity
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 // Auth helper: verify caller is a real user
 async function verifyUser(req) {

@@ -1,7 +1,7 @@
 // 群組設定指令處理
 // 當在群組輸入 /設定 指令時，自動配置群組
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 

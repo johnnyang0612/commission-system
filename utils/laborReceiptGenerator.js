@@ -1,5 +1,5 @@
 // 勞務報酬單自動產生工具
-import { supabase } from './supabaseClient';
+import { supabaseAdmin as supabase } from './supabaseAdmin';
 
 /**
  * 當分潤實際發放後，自動產生勞務報酬單

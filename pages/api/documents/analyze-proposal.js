@@ -1,5 +1,5 @@
 // 智能建案 API - 分析簽約提案書並提取專案資訊（V2 增強版）
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 import { parseDocument } from '../../../utils/documentParser';
 import formidable from 'formidable';
 import fs from 'fs';

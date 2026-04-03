@@ -3,7 +3,7 @@
 // Provides a single entry point for intent detection, permission checking,
 // context gathering, AI response, and audit logging.
 
-import { supabase } from './supabaseClient';
+import { supabaseAdmin as supabase } from './supabaseAdmin';
 import { logAssistantAction, updateAssistantAction } from './assistantLogger';
 import { executeOperation, checkPermission, parseIntent } from './agentExecutor';
 

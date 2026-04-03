@@ -1,7 +1,7 @@
 // Google Meet 會議建立 API
 // 串接 Google Calendar API 建立真正的日曆事件 + Meet 連結
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 import { createCalendarEvent, getAdminGoogleAccessToken } from '../../../utils/googleCalendar';
 import { resolveParticipants } from '../../../utils/memberLookup';
 

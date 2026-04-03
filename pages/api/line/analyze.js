@@ -1,7 +1,7 @@
 // LINE 對話 AI 分析 API
 // 分析群組對話，產生摘要並建議洽談階段
 
-import { supabase } from '../../../utils/supabaseClient';
+import { supabaseAdmin as supabase } from '../../../utils/supabaseAdmin';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
