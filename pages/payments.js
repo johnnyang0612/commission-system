@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { canViewFinancialData, getCurrentUser, getCurrentUserRole } from '../utils/permissions';
+import { canViewFinancialData } from '../utils/permissions';
+import { useSimpleAuth } from '../utils/simpleAuth';
 import { autoPayoutCommissions } from '../utils/commissionPayoutManager';
 import { autoProcessPayment } from '../utils/commissionEngineV2';
 
 export default function Payments() {
+  const { user: authUserData, loading: authLoading } = useSimpleAuth();
   const [payments, setPayments] = useState([]);
   const [projects, setProjects] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -18,14 +20,14 @@ export default function Payments() {
   });
 
   useEffect(() => {
-    const user = getCurrentUser();
-    const role = getCurrentUserRole();
-    setCurrentUser(user);
-    setUserRole(role);
+    if (!authLoading && authUserData) {
+      setCurrentUser(authUserData);
+      setUserRole(authUserData.role);
+    }
 
     fetchPayments();
     fetchProjects();
-  }, []);
+  }, [authLoading, authUserData]);
 
   async function fetchPayments() {
     if (!supabase) return;

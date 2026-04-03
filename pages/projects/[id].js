@@ -108,16 +108,16 @@ export default function ProjectDetail() {
       // 獲取當前用戶資料和角色
       getCurrentUser(authUser).then(userData => {
         setCurrentUser(userData);
-        setUserRole(userData?.role || 'admin'); // 預設給予管理員權限
+        setUserRole(userData?.role || 'sales'); // 預設給予最低權限
         console.log('當前用戶角色:', userData?.role);
       }).catch(err => {
         console.error('無法獲取用戶資料:', err);
-        // 錯誤時預設給予管理員權限
-        setUserRole('admin');
+        // 錯誤時預設給予最低權限
+        setUserRole('sales');
       });
     } else {
-      // 沒有用戶資料時，預設給予管理員權限
-      setUserRole('admin');
+      // 沒有用戶資料時，預設給予最低權限
+      setUserRole('sales');
     }
   }, [authUser]);
 
@@ -1735,7 +1735,26 @@ export default function ProjectDetail() {
       )}
 
       <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '8px', marginBottom: '2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <h2 style={{ marginTop: 0 }}>專案詳情：{project.project_code}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ marginTop: 0 }}>專案詳情：{project.project_code}</h2>
+          {userRole === 'admin' && (
+            <button
+              onClick={async () => {
+                if (!confirm('確定要刪除這個專案嗎？此操作無法復原。相關的付款期程、里程碑、分潤規則也會一併刪除。')) return;
+                const { error } = await supabase.from('projects').delete().eq('id', id);
+                if (error) {
+                  alert('刪除失敗: ' + error.message);
+                } else {
+                  alert('專案已刪除');
+                  router.push('/cases');
+                }
+              }}
+              style={{ padding: '8px 16px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+            >
+              刪除專案
+            </button>
+          )}
+        </div>
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2rem', marginTop: '2rem' }}>
           <div>

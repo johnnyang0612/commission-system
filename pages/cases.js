@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../utils/supabaseClient';
-import { getCurrentUser, getCurrentUserRole, USER_ROLES } from '../utils/permissions';
+import { USER_ROLES } from '../utils/permissions';
+import { useSimpleAuth } from '../utils/simpleAuth';
 
 // 統一的案件階段
 const STAGES = [
@@ -18,6 +19,7 @@ const STAGES = [
 
 export default function Cases() {
   const router = useRouter();
+  const { user: authUserData, loading: authLoading } = useSimpleAuth();
   const [cases, setCases] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,12 +38,13 @@ export default function Cases() {
   });
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!authLoading && authUserData) {
+      loadData(authUserData);
+    }
+  }, [authLoading, authUserData]);
 
-  async function loadData() {
+  async function loadData(user) {
     setLoading(true);
-    const user = getCurrentUser();
     setCurrentUser(user);
 
     await Promise.all([
@@ -106,9 +109,8 @@ export default function Cases() {
     ];
 
     // 根據角色過濾
-    const role = getCurrentUserRole();
     let filteredCases = allCases;
-    if (role === USER_ROLES.SALES) {
+    if (user?.role === USER_ROLES.SALES) {
       filteredCases = allCases.filter(c => c.owner_id === user?.id);
     }
 

@@ -38,8 +38,8 @@ export default function Layout({ children }) {
 
   const isAdmin = user && user.role === USER_ROLES.ADMIN;
   const isLeader = user && user.role === USER_ROLES.LEADER;
-  const isFinance = user && (user.role === USER_ROLES.ADMIN || user.role === USER_ROLES.FINANCE);
-  const canManageUsers = isAdmin || isLeader;
+  const isFinanceOrLeader = isAdmin || isLeader || (user && user.role === USER_ROLES.FINANCE);
+  const canManageUsers = isAdmin || isLeader || (user && user.role === USER_ROLES.FINANCE);
 
   if (loading) {
     return (

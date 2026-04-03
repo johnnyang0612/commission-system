@@ -53,7 +53,7 @@ export default function Dashboard() {
           id: authUser.id,
           email: authUser.email,
           name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
-          role: 'admin' // 預設給管理員權限
+          role: 'sales' // 預設給最低權限
         };
       } else {
         currentUser = userData;
@@ -70,7 +70,7 @@ export default function Dashboard() {
         id: 'default',
         email: 'default@example.com',
         name: 'Default User',
-        role: 'admin'
+        role: 'sales'
       });
     } finally {
       setLoading(false);
