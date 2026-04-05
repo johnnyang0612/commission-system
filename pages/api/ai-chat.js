@@ -1,6 +1,7 @@
 // AI Chat API - 川輝AI助理對話介面（含操作執行能力）
 import { supabaseAdmin as supabase } from '../../utils/supabaseAdmin';
 import { parseIntent, executeOperation, logCommand } from '../../utils/agentExecutor';
+import { queryWiki } from '../../utils/companyWiki';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -81,6 +82,30 @@ export default async function handler(req, res) {
         return query.eq(projectIdColumn, '00000000-0000-0000-0000-000000000000'); // 沒有自己的專案就不回傳
       }
       return query;
+    }
+
+    // ===== 查詢公司 Wiki 知識庫 =====
+    let wikiContext = '';
+    let styleContext = '';
+    try {
+      // Extract client name from message if mentioned
+      const clientMatch = message.match(/(?:客戶|公司|廠商)[：:]?\s*([^\s,，。]+)/);
+      const mentionedClient = clientMatch ? clientMatch[1] : null;
+
+      const wikiResult = await queryWiki(message, {
+        userId,
+        clientName: mentionedClient,
+      });
+
+      if (wikiResult.wikiHit && wikiResult.wikiContext) {
+        wikiContext = '\n\n## 公司知識庫\n' + wikiResult.wikiContext;
+      }
+      if (wikiResult.styleContext) {
+        styleContext = wikiResult.styleContext;
+      }
+    } catch (e) {
+      console.error('Wiki query error:', e.message);
+      // Wiki query failure should not block the chat
     }
 
     // ===== 根據訊息內容收集相關資料 =====
@@ -196,7 +221,7 @@ export default async function handler(req, res) {
 - 提供統計摘要和分析
 - 協助撰寫提案書、規格書等文件草稿
 - 引導使用者操作系統功能
-
+${styleContext ? `\n## 你的溝通風格\n${styleContext}\n` : ''}
 ## 當前資訊
 - 今天日期：${today}
 - 使用者：${userName}（角色：${roleMap[userRole] || userRole}）
@@ -250,6 +275,8 @@ ${userRole === 'pm' ? '此使用者是 PM，可查看全部專案但不含財務
 4. 回答要簡潔明瞭，使用條列式呈現數據
 5. 若使用者的問題需要操作系統但不在你的可執行範圍，指引使用者到對應頁面
 6. 保持專業友善的語氣
+7. 如果公司知識庫有相關資訊，優先使用知識庫的內容回答，並標注來源
+8. 回答技術問題時，優先引用公司過去的專案經驗和解決方案
 
 ## 頁面導引
 - 儀表板：/dashboard
@@ -261,7 +288,7 @@ ${userRole === 'pm' ? '此使用者是 PM，可查看全部專案但不含財務
 - 洽談管道：/prospects
 - LINE群組：/line-integration
 - AI工具：/ai-generator
-- 設定：/settings${contextData}`;
+- 設定：/settings${wikiContext}${contextData}`;
 
     // ===== 組裝對話歷史 =====
     const conversationMessages = [];
